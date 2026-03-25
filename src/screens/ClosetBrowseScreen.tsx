@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -7,36 +7,49 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  Dimensions,
-} from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import ClothingCard from '../components/ClothingCard';
-import CategoryPill from '../components/CategoryPill';
-import { Colors, Spacing, BorderRadius, Typography } from '../theme';
-import { MOCK_CLOSET_ITEMS, CATEGORIES } from '../data/mockData';
-
-const { width } = Dimensions.get('window');
-const CARD_SIZE = (width - Spacing.base * 2 - Spacing.xs * 4) / 3;
+  Alert,
+} from "react-native";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
+import { Image } from "react-native";
+import CategoryPill from "../components/CategoryPill";
+import { Colors, Spacing, BorderRadius, Typography } from "../theme";
+import { MOCK_CLOSET_ITEMS, CATEGORIES, ClothingItem } from "../data/mockData";
 
 export default function ClosetBrowseScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const initialCategory = route.params?.category || 'All';
+  const initialCategory = route.params?.category || "All";
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
+  const [items, setItems] = useState<ClothingItem[]>(MOCK_CLOSET_ITEMS);
 
-  const filteredItems = selectedCategory === 'All'
-    ? MOCK_CLOSET_ITEMS
-    : MOCK_CLOSET_ITEMS.filter(item => item.category === selectedCategory);
+  const filteredItems =
+    selectedCategory === "All"
+      ? items
+      : items.filter((item) => item.category === selectedCategory);
+
+  const handleDelete = (itemId: string) => {
+    Alert.alert("Remove Item", "Remove this item from your closet?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: () => setItems((prev) => prev.filter((i) => i.id !== itemId)),
+      },
+    ]);
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+        >
           <Ionicons name="chevron-back" size={24} color={Colors.black} />
         </TouchableOpacity>
-        <Text style={styles.title}>Start Selecting</Text>
+        <Text style={styles.title}>Start Sorting</Text>
         <TouchableOpacity style={styles.searchBtn}>
           <Ionicons name="search" size={22} color={Colors.black} />
         </TouchableOpacity>
@@ -67,13 +80,30 @@ export default function ClosetBrowseScreen() {
         contentContainerStyle={styles.grid}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => (
-          <ClothingCard
-            item={item}
-            size="medium"
-            showAdd
-            onPress={() => navigation.navigate('ItemDetail', { item })}
-            onAdd={() => {}}
-          />
+          <View style={styles.cardWrapper}>
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() => navigation.navigate("ItemDetail", { item })}
+              activeOpacity={0.8}
+            >
+              <Image
+                source={{ uri: item.image }}
+                style={styles.image}
+                resizeMode="contain"
+              />
+              {item.forSale && (
+                <View style={styles.saleTag}>
+                  <Text style={styles.saleText}>SELL</Text>
+                </View>
+              )}
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDelete(item.id)}
+              >
+                <Ionicons name="trash-outline" size={13} color="#fff" />
+              </TouchableOpacity>
+            </TouchableOpacity>
+          </View>
         )}
         ListFooterComponent={<View style={{ height: 100 }} />}
       />
@@ -87,8 +117,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: Spacing.base,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
@@ -96,22 +126,22 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 36,
     height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   title: {
     flex: 1,
     fontSize: Typography.fontSize.xl,
-    fontWeight: '700',
+    fontWeight: "700",
     color: Colors.textPrimary,
-    textAlign: 'center',
+    textAlign: "center",
     letterSpacing: -0.5,
   },
   searchBtn: {
     width: 36,
     height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   pillsScroll: {
     maxHeight: 48,
@@ -119,9 +149,54 @@ const styles = StyleSheet.create({
   },
   pillsContent: {
     paddingHorizontal: Spacing.base,
-    alignItems: 'center',
+    alignItems: "center",
   },
   grid: {
     paddingHorizontal: Spacing.base,
+  },
+  cardWrapper: {
+    margin: Spacing.xs,
+  },
+  card: {
+    width: 120,
+    backgroundColor: Colors.cardBackground,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.sm,
+    position: "relative",
+  },
+  image: {
+    width: 90,
+    height: 90,
+    borderRadius: BorderRadius.sm,
+  },
+  saleTag: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  saleText: {
+    color: Colors.white,
+    fontSize: 9,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  deleteButton: {
+    position: "absolute",
+    bottom: 6,
+    right: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
