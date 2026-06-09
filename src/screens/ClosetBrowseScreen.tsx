@@ -7,37 +7,27 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  Alert,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "react-native";
 import CategoryPill from "../components/CategoryPill";
 import { Colors, Spacing, BorderRadius, Typography } from "../theme";
-import { MOCK_CLOSET_ITEMS, CATEGORIES, ClothingItem } from "../data/mockData";
+import { CATEGORIES } from "../data/mockData";
+import { useCloset } from "../context/ClosetContext";
 
 export default function ClosetBrowseScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const initialCategory = route.params?.category || "All";
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
-  const [items, setItems] = useState<ClothingItem[]>(MOCK_CLOSET_ITEMS);
+
+  const { items, removeItem } = useCloset();
 
   const filteredItems =
     selectedCategory === "All"
       ? items
       : items.filter((item) => item.category === selectedCategory);
-
-  const handleDelete = (itemId: string) => {
-    Alert.alert("Remove Item", "Remove this item from your closet?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Remove",
-        style: "destructive",
-        onPress: () => setItems((prev) => prev.filter((i) => i.id !== itemId)),
-      },
-    ]);
-  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -96,12 +86,12 @@ export default function ClosetBrowseScreen() {
                   <Text style={styles.saleText}>SELL</Text>
                 </View>
               )}
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={() => handleDelete(item.id)}
-              >
-                <Ionicons name="trash-outline" size={13} color="#fff" />
-              </TouchableOpacity>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={() => removeItem(item.id)}
+            >
+              <Ionicons name="trash-outline" size={13} color="#fff" />
             </TouchableOpacity>
           </View>
         )}
@@ -156,6 +146,7 @@ const styles = StyleSheet.create({
   },
   cardWrapper: {
     margin: Spacing.xs,
+    position: "relative",
   },
   card: {
     width: 120,
@@ -166,7 +157,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: Spacing.sm,
-    position: "relative",
   },
   image: {
     width: 90,
@@ -198,5 +188,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     alignItems: "center",
     justifyContent: "center",
+    zIndex: 10,
   },
 });

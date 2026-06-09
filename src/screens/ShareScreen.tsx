@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,14 +8,21 @@ import {
   SafeAreaView,
   FlatList,
   Dimensions,
-} from 'react-native';
-import { Ionicons, Feather } from '@expo/vector-icons';
-import { Colors, Spacing, BorderRadius, Typography } from '../theme';
-import { MOCK_SOCIAL_POSTS, MOCK_CLOSET_ITEMS, SocialPost } from '../data/mockData';
+} from "react-native";
+import { Ionicons, Feather } from "@expo/vector-icons";
+import { Colors, Spacing, BorderRadius, Typography } from "../theme";
+import { MOCK_CLOSET_ITEMS, SocialPost } from "../data/mockData";
+import { useOutfits } from "../context/OutfitContext";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
-function SocialCard({ post, onLike }: { post: SocialPost; onLike: (id: string) => void }) {
+function SocialCard({
+  post,
+  onLike,
+}: {
+  post: SocialPost;
+  onLike: (id: string) => void;
+}) {
   return (
     <View style={styles.card}>
       {/* User Header */}
@@ -58,20 +65,33 @@ function SocialCard({ post, onLike }: { post: SocialPost; onLike: (id: string) =
           style={styles.actionBtn}
         >
           <Ionicons
-            name={post.isLiked ? 'heart' : 'heart-outline'}
+            name={post.isLiked ? "heart" : "heart-outline"}
             size={22}
             color={post.isLiked ? Colors.primary : Colors.textSecondary}
           />
-          <Text style={[styles.actionCount, post.isLiked && { color: Colors.primary }]}>
+          <Text
+            style={[
+              styles.actionCount,
+              post.isLiked && { color: Colors.primary },
+            ]}
+          >
             {post.likes}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtn}>
-          <Ionicons name="chatbubble-outline" size={20} color={Colors.textSecondary} />
+          <Ionicons
+            name="chatbubble-outline"
+            size={20}
+            color={Colors.textSecondary}
+          />
           <Text style={styles.actionCount}>{post.comments}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtn}>
-          <Ionicons name="bookmark-outline" size={20} color={Colors.textSecondary} />
+          <Ionicons
+            name="bookmark-outline"
+            size={20}
+            color={Colors.textSecondary}
+          />
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtn}>
           <Feather name="share" size={20} color={Colors.textSecondary} />
@@ -82,21 +102,7 @@ function SocialCard({ post, onLike }: { post: SocialPost; onLike: (id: string) =
 }
 
 export default function ShareScreen() {
-  const [posts, setPosts] = useState(MOCK_SOCIAL_POSTS);
-
-  const handleLike = (postId: string) => {
-    setPosts((prev) =>
-      prev.map((post) =>
-        post.id === postId
-          ? {
-              ...post,
-              isLiked: !post.isLiked,
-              likes: post.isLiked ? post.likes - 1 : post.likes + 1,
-            }
-          : post
-      )
-    );
-  };
+  const { socialPosts: posts, toggleLike: handleLike } = useOutfits();
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -108,7 +114,11 @@ export default function ShareScreen() {
             <Ionicons name="search" size={22} color={Colors.black} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.headerBtn}>
-            <Ionicons name="add-circle-outline" size={24} color={Colors.primary} />
+            <Ionicons
+              name="add-circle-outline"
+              size={24}
+              color={Colors.primary}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -121,23 +131,31 @@ export default function ShareScreen() {
           </View>
           <Text style={styles.storyLabel}>Your Story</Text>
         </TouchableOpacity>
-        {['@stylebyemma', '@fashionbysophia', '@minimalistmia'].map((user, i) => (
-          <TouchableOpacity key={i} style={styles.storyItem}>
-            <View style={styles.storyRing}>
-              <Image
-                source={{ uri: `https://images.unsplash.com/photo-${i === 0 ? '1494790108377-be9c29b29330' : i === 1 ? '1438761681033-6461ffad8d80' : '1544005313-94ddf0286df2'}?w=60&h=60&fit=crop&crop=face` }}
-                style={styles.storyAvatar}
-              />
-            </View>
-            <Text style={styles.storyLabel} numberOfLines={1}>{user.replace('@', '')}</Text>
-          </TouchableOpacity>
-        ))}
+        {["@stylebyemma", "@fashionbysophia", "@minimalistmia"].map(
+          (user, i) => (
+            <TouchableOpacity key={i} style={styles.storyItem}>
+              <View style={styles.storyRing}>
+                <Image
+                  source={{
+                    uri: `https://images.unsplash.com/photo-${i === 0 ? "1494790108377-be9c29b29330" : i === 1 ? "1438761681033-6461ffad8d80" : "1544005313-94ddf0286df2"}?w=60&h=60&fit=crop&crop=face`,
+                  }}
+                  style={styles.storyAvatar}
+                />
+              </View>
+              <Text style={styles.storyLabel} numberOfLines={1}>
+                {user.replace("@", "")}
+              </Text>
+            </TouchableOpacity>
+          ),
+        )}
       </View>
 
       <FlatList
         data={posts}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <SocialCard post={item} onLike={handleLike} />}
+        renderItem={({ item }) => (
+          <SocialCard post={item} onLike={handleLike} />
+        )}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ListFooterComponent={<View style={{ height: 100 }} />}
@@ -152,37 +170,37 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.base,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
   },
   title: {
     fontSize: Typography.fontSize.xl,
-    fontWeight: '700',
+    fontWeight: "700",
     color: Colors.textPrimary,
     letterSpacing: -0.5,
   },
   headerRight: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: Spacing.sm,
   },
   headerBtn: {
     width: 36,
     height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   storyRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: Spacing.base,
     paddingBottom: Spacing.md,
     gap: Spacing.md,
   },
   storyAdd: {
-    alignItems: 'center',
+    alignItems: "center",
     width: 60,
   },
   storyAddInner: {
@@ -192,12 +210,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderWidth: 2,
     borderColor: Colors.primary,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderStyle: "dashed",
+    alignItems: "center",
+    justifyContent: "center",
   },
   storyItem: {
-    alignItems: 'center',
+    alignItems: "center",
     width: 60,
   },
   storyRing: {
@@ -207,8 +225,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors.primary,
     padding: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   storyAvatar: {
     width: 48,
@@ -219,7 +237,7 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     color: Colors.textSecondary,
     marginTop: 4,
-    textAlign: 'center',
+    textAlign: "center",
     width: 60,
   },
   list: {
@@ -229,16 +247,16 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.cardBackground,
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.base,
-    overflow: 'hidden',
-    shadowColor: '#000',
+    overflow: "hidden",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
   },
   cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: Spacing.md,
   },
   avatar: {
@@ -252,7 +270,7 @@ const styles = StyleSheet.create({
   },
   username: {
     fontSize: Typography.fontSize.sm,
-    fontWeight: '700',
+    fontWeight: "700",
     color: Colors.textPrimary,
   },
   timestamp: {
@@ -268,7 +286,7 @@ const styles = StyleSheet.create({
   followBtnText: {
     color: Colors.white,
     fontSize: Typography.fontSize.xs,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   outfitContainer: {
     paddingHorizontal: Spacing.md,
@@ -278,7 +296,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   outfitCategoryLabel: {
-    alignSelf: 'center',
+    alignSelf: "center",
     backgroundColor: Colors.black,
     borderRadius: BorderRadius.pill,
     paddingHorizontal: Spacing.md,
@@ -288,7 +306,7 @@ const styles = StyleSheet.create({
   outfitCategoryText: {
     color: Colors.white,
     fontSize: Typography.fontSize.xs,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   outfitItemCard: {
     backgroundColor: Colors.background,
@@ -296,8 +314,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     height: 100,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   outfitItemImage: {
     width: 80,
@@ -311,7 +329,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   actions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.md,
     borderTopWidth: 1,
@@ -320,13 +338,13 @@ const styles = StyleSheet.create({
     gap: Spacing.base,
   },
   actionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
   },
   actionCount: {
     fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
-    fontWeight: '500',
+    fontWeight: "500",
   },
 });

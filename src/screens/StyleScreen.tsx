@@ -79,21 +79,18 @@ export default function StyleScreen() {
   // Save popup state
   const [saveModalVisible, setSaveModalVisible] = useState(false);
   const [outfitName, setOutfitName] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const { addOutfit, categories } = useOutfits();
+  const [selectedOccasion, setSelectedOccasion] = useState("");
+  const [newOccInput, setNewOccInput] = useState("");
 
-  // Delete a slot
-  const deleteSlot = (slotIndex: number) => {
-    setSlots((prev) => prev.filter((_, i) => i !== slotIndex));
-  };
+  const { addOutfit, categories, addOccasion, sharePost } = useOutfits();
 
-  // Add a new category slot
+  // Share popup state
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [shareCaption, setShareCaption] = useState("");
+  const [sharedOutfit, setSharedOutfit] = useState(false);
+
+  // Add new category slot
   const [addPickerVisible, setAddPickerVisible] = useState(false);
-
-  const addSlot = (cat: string) => {
-    setSlots((prev) => [...prev, buildSlot(cat)]);
-    setAddPickerVisible(false);
-  };
 
   // Modal state for tap-to-change
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -107,6 +104,15 @@ export default function StyleScreen() {
   const slotOffsets = useRef<number[]>([]);
   const dragStartY = useRef(0);
   const dragStartIndex = useRef(0);
+
+  const deleteSlot = (slotIndex: number) => {
+    setSlots((prev) => prev.filter((_, i) => i !== slotIndex));
+  };
+
+  const addSlot = (cat: string) => {
+    setSlots((prev) => [...prev, buildSlot(cat)]);
+    setAddPickerVisible(false);
+  };
 
   const navigate = (slotIndex: number, direction: "prev" | "next") => {
     setSlots((prev) =>
@@ -125,12 +131,21 @@ export default function StyleScreen() {
 
   const handleSave = () => {
     setOutfitName("");
-    setSelectedCategory(categories[0] || "");
+    setSelectedOccasion(categories[0] || "");
+    setNewOccInput("");
     setSaveModalVisible(true);
   };
 
+  const handleAddNewOccasion = () => {
+    const cat = newOccInput.trim();
+    if (!cat || categories.includes(cat)) return;
+    addOccasion(cat);
+    setSelectedOccasion(cat);
+    setNewOccInput("");
+  };
+
   const confirmSave = () => {
-    if (!outfitName.trim() || !selectedCategory) return;
+    if (!outfitName.trim() || !selectedOccasion) return;
     const selectedItems = slots
       .filter((s) => s.items.length > 0)
       .map((s) => s.items[s.currentIndex]);
@@ -138,26 +153,24 @@ export default function StyleScreen() {
       id: `outfit-${Date.now()}`,
       name: outfitName.trim(),
       items: selectedItems,
-      occasion: selectedCategory,
+      occasion: selectedOccasion,
       season: "All Season",
       createdDate: new Date().toISOString().split("T")[0],
       isShared: false,
       likes: 0,
-      outfitCategory: selectedCategory,
+      outfitCategory: selectedOccasion,
     });
     setSaveModalVisible(false);
-    setSavedCategoryName(selectedCategory);
+    setSavedCategoryName(selectedOccasion);
     setSavedOutfit(true);
     setTimeout(() => setSavedOutfit(false), 3000);
   };
 
-  // Tap label → open picker
   const openPicker = (slotIndex: number) => {
     setEditingIndex(slotIndex);
     setPickerVisible(true);
   };
 
-  // Pick a new category for the slot
   const selectCategory = (cat: string) => {
     if (editingIndex === null) return;
     setSlots((prev) =>
@@ -167,7 +180,6 @@ export default function StyleScreen() {
     setEditingIndex(null);
   };
 
-  // Build PanResponder for a given slot index
   const buildPanResponder = (index: number) =>
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -180,7 +192,6 @@ export default function StyleScreen() {
       },
       onPanResponderMove: (_, gs) => {
         dragY.setValue(gs.dy);
-        // Determine which slot we're hovering over
         const currentY = dragStartY.current + gs.dy;
         let hoverIndex = index;
         for (let i = 0; i < slotOffsets.current.length; i++) {
@@ -234,6 +245,13 @@ export default function StyleScreen() {
         </View>
       )}
 
+      {sharedOutfit && (
+        <View style={[styles.savedBanner, { backgroundColor: "#4A90D9" }]}>
+          <Ionicons name="share-social" size={16} color={Colors.white} />
+          <Text style={styles.savedBannerText}>Posted to Share feed ✓</Text>
+        </View>
+      )}
+
       <Text style={styles.hint}>
         <Ionicons name="swap-vertical-outline" size={12} /> Drag handle to
         reorder · Tap label to change category
@@ -268,9 +286,7 @@ export default function StyleScreen() {
                   isDragging && { transform: [{ translateY: dragY }] },
                 ]}
               >
-                {/* Row: drag handle + category label + delete */}
                 <View style={styles.categoryRow}>
-                  {/* Drag handle */}
                   <View {...panResponder.panHandlers} style={styles.dragHandle}>
                     <Ionicons
                       name="reorder-three-outline"
@@ -278,8 +294,6 @@ export default function StyleScreen() {
                       color={Colors.textSecondary}
                     />
                   </View>
-
-                  {/* Tappable category label */}
                   <TouchableOpacity
                     style={styles.categoryLabelContainer}
                     onPress={() => openPicker(slotIndex)}
@@ -293,8 +307,6 @@ export default function StyleScreen() {
                       style={{ marginLeft: 4 }}
                     />
                   </TouchableOpacity>
-
-                  {/* Delete slot button */}
                   <TouchableOpacity
                     onPress={() => deleteSlot(slotIndex)}
                     style={styles.deleteSlotBtn}
@@ -308,7 +320,6 @@ export default function StyleScreen() {
                   </TouchableOpacity>
                 </View>
 
-                {/* Item Card */}
                 {currentItem ? (
                   <>
                     <View style={styles.itemCard}>
@@ -321,19 +332,17 @@ export default function StyleScreen() {
                           name="chevron-back"
                           size={20}
                           color={
-                            slot.items.length > 1
-                              ? Colors.black
-                              : Colors.lightGray
+                            slot.items.length <= 1
+                              ? Colors.lightGray
+                              : Colors.textPrimary
                           }
                         />
                       </TouchableOpacity>
-
                       <Image
                         source={{ uri: currentItem.image }}
                         style={styles.itemImage}
                         resizeMode="contain"
                       />
-
                       <TouchableOpacity
                         onPress={() => navigate(slotIndex, "next")}
                         style={styles.arrowBtn}
@@ -343,30 +352,27 @@ export default function StyleScreen() {
                           name="chevron-forward"
                           size={20}
                           color={
-                            slot.items.length > 1
-                              ? Colors.black
-                              : Colors.lightGray
+                            slot.items.length <= 1
+                              ? Colors.lightGray
+                              : Colors.textPrimary
                           }
                         />
                       </TouchableOpacity>
                     </View>
-
                     <View style={styles.itemInfo}>
                       <Text style={styles.itemName} numberOfLines={1}>
                         {currentItem.name}
                       </Text>
                       <Text style={styles.itemBrand}>{currentItem.brand}</Text>
                     </View>
-
                     {slot.items.length > 1 && (
                       <View style={styles.dots}>
-                        {slot.items.map((_, dotIndex) => (
+                        {slot.items.map((_, dotIdx) => (
                           <View
-                            key={dotIndex}
+                            key={dotIdx}
                             style={[
                               styles.dot,
-                              dotIndex === slot.currentIndex &&
-                                styles.activeDot,
+                              dotIdx === slot.currentIndex && styles.activeDot,
                             ]}
                           />
                         ))}
@@ -376,9 +382,9 @@ export default function StyleScreen() {
                 ) : (
                   <View style={styles.emptyCard}>
                     <Ionicons
-                      name="add-circle-outline"
-                      size={32}
-                      color={Colors.lightGray}
+                      name="shirt-outline"
+                      size={28}
+                      color={Colors.textSecondary}
                     />
                     <Text style={styles.emptyText}>
                       No items in {slot.category}
@@ -390,9 +396,8 @@ export default function StyleScreen() {
           );
         })}
 
-        {/* Add Category Button */}
         <TouchableOpacity
-          style={styles.addCategoryBtn}
+          style={styles.addOccasionBtn}
           onPress={() => setAddPickerVisible(true)}
         >
           <Ionicons
@@ -400,12 +405,17 @@ export default function StyleScreen() {
             size={20}
             color={Colors.primary}
           />
-          <Text style={styles.addCategoryText}>Add Category</Text>
+          <Text style={styles.addOccasionText}>Add Category</Text>
         </TouchableOpacity>
 
-        {/* Action Buttons */}
         <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.shareBtn}>
+          <TouchableOpacity
+            style={styles.shareBtn}
+            onPress={() => {
+              setShareCaption("");
+              setShareModalVisible(true);
+            }}
+          >
             <Ionicons
               name="share-social-outline"
               size={18}
@@ -413,16 +423,16 @@ export default function StyleScreen() {
             />
             <Text style={styles.shareBtnText}>Share Outfit</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.aiBtn}>
-            <Ionicons name="sparkles-outline" size={18} color={Colors.white} />
-            <Text style={styles.aiBtnText}>AI Suggest</Text>
+          <TouchableOpacity style={styles.saveOutfitBtn} onPress={handleSave}>
+            <Ionicons name="bookmark-outline" size={18} color={Colors.white} />
+            <Text style={styles.saveOutfitBtnText}>Save Outfit</Text>
           </TouchableOpacity>
         </View>
 
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Add Category Picker Modal */}
+      {/* Add Clothing Category Picker Modal */}
       <Modal
         visible={addPickerVisible}
         transparent
@@ -439,7 +449,7 @@ export default function StyleScreen() {
             <Text style={styles.modalTitle}>Add Category</Text>
             <FlatList
               data={ALL_CATEGORIES.filter(
-                (cat) => !slots.find((s) => s.category === cat),
+                (cat) => !slots.some((s) => s.category === cat),
               )}
               keyExtractor={(item) => item}
               renderItem={({ item }) => (
@@ -448,7 +458,6 @@ export default function StyleScreen() {
                   onPress={() => addSlot(item)}
                 >
                   <Text style={styles.categoryOptionText}>{item}</Text>
-                  <Ionicons name="add" size={18} color={Colors.primary} />
                 </TouchableOpacity>
               )}
               ListEmptyComponent={
@@ -456,7 +465,7 @@ export default function StyleScreen() {
                   style={{
                     textAlign: "center",
                     color: Colors.textSecondary,
-                    padding: 24,
+                    padding: Spacing.lg,
                   }}
                 >
                   All categories already added
@@ -488,7 +497,7 @@ export default function StyleScreen() {
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Save Outfit</Text>
 
-            {/* Outfit name input */}
+            {/* Outfit name */}
             <Text style={styles.inputLabel}>Outfit name</Text>
             <TextInput
               style={styles.textInput}
@@ -502,12 +511,12 @@ export default function StyleScreen() {
 
             {/* Category picker */}
             <Text style={[styles.inputLabel, { marginTop: Spacing.md }]}>
-              Save to category
+              Save to occasion
             </Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              style={{ marginBottom: Spacing.base }}
+              style={{ marginBottom: Spacing.sm }}
             >
               <View
                 style={{
@@ -519,16 +528,16 @@ export default function StyleScreen() {
                 {categories.map((cat) => (
                   <TouchableOpacity
                     key={cat}
-                    onPress={() => setSelectedCategory(cat)}
+                    onPress={() => setSelectedOccasion(cat)}
                     style={[
                       styles.catChip,
-                      selectedCategory === cat && styles.catChipSelected,
+                      selectedOccasion === cat && styles.catChipSelected,
                     ]}
                   >
                     <Text
                       style={[
                         styles.catChipText,
-                        selectedCategory === cat && styles.catChipTextSelected,
+                        selectedOccasion === cat && styles.catChipTextSelected,
                       ]}
                     >
                       {cat}
@@ -538,13 +547,37 @@ export default function StyleScreen() {
               </View>
             </ScrollView>
 
+            {/* Create new category */}
+            <View style={styles.newCatRow}>
+              <TextInput
+                style={styles.newOccInput}
+                placeholder="Create new occasion..."
+                placeholderTextColor={Colors.textSecondary}
+                value={newOccInput}
+                onChangeText={setNewOccInput}
+                returnKeyType="done"
+                onSubmitEditing={handleAddNewOccasion}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.addCatBtn,
+                  !newOccInput.trim() && { opacity: 0.4 },
+                ]}
+                onPress={handleAddNewOccasion}
+                disabled={!newOccInput.trim()}
+              >
+                <Ionicons name="add" size={20} color={Colors.white} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Save button */}
             <TouchableOpacity
               style={[
                 styles.confirmSaveBtn,
-                (!outfitName.trim() || !selectedCategory) && { opacity: 0.4 },
+                (!outfitName.trim() || !selectedOccasion) && { opacity: 0.4 },
               ]}
               onPress={confirmSave}
-              disabled={!outfitName.trim() || !selectedCategory}
+              disabled={!outfitName.trim() || !selectedOccasion}
             >
               <Ionicons name="bookmark" size={16} color={Colors.white} />
               <Text style={styles.confirmSaveBtnText}>Save Outfit</Text>
@@ -553,7 +586,84 @@ export default function StyleScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* Category Picker Modal */}
+      {/* Share Outfit Modal */}
+      <Modal
+        visible={shareModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShareModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShareModalVisible(false)}
+        >
+          <View
+            style={[
+              styles.modalSheet,
+              { paddingHorizontal: Spacing.base, paddingBottom: 40 },
+            ]}
+          >
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Share Outfit</Text>
+            <Text style={styles.inputLabel}>Add a caption</Text>
+            <TextInput
+              style={[
+                styles.textInput,
+                { height: 80, textAlignVertical: "top" },
+              ]}
+              placeholder="e.g. My go-to weekend look ✨"
+              placeholderTextColor={Colors.textSecondary}
+              value={shareCaption}
+              onChangeText={setShareCaption}
+              multiline
+              autoFocus
+            />
+            <TouchableOpacity
+              style={styles.confirmSaveBtn}
+              onPress={() => {
+                const selectedItems = slots
+                  .filter((s) => s.items.length > 0)
+                  .map((s) => s.items[s.currentIndex]);
+                sharePost({
+                  id: `post-${Date.now()}`,
+                  userId: "me",
+                  username: "@you",
+                  userAvatar:
+                    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=60&h=60&fit=crop&crop=face",
+                  outfit: {
+                    id: `outfit-${Date.now()}`,
+                    name: "My Outfit",
+                    items: selectedItems,
+                    occasion: "",
+                    season: "All Season",
+                    createdDate: new Date().toISOString().split("T")[0],
+                    isShared: true,
+                    likes: 0,
+                  },
+                  caption: shareCaption.trim() || "Check out my outfit! 👗",
+                  likes: 0,
+                  comments: 0,
+                  isLiked: false,
+                  timestamp: "Just now",
+                });
+                setShareModalVisible(false);
+                setSharedOutfit(true);
+                setTimeout(() => setSharedOutfit(false), 3000);
+              }}
+            >
+              <Ionicons
+                name="share-social-outline"
+                size={16}
+                color={Colors.white}
+              />
+              <Text style={styles.confirmSaveBtnText}>Post to Share Feed</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Change Category Picker Modal */}
       <Modal
         visible={pickerVisible}
         transparent
@@ -610,10 +720,7 @@ export default function StyleScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+  safeArea: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -655,25 +762,16 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginBottom: Spacing.sm,
   },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: Spacing.base,
-  },
-  slotWrapper: {
-    marginBottom: Spacing.md,
-    borderRadius: BorderRadius.lg,
-  },
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: Spacing.base },
+  slotWrapper: { marginBottom: Spacing.md, borderRadius: BorderRadius.lg },
   dropTarget: {
     borderWidth: 2,
     borderColor: Colors.primary,
     borderStyle: "dashed",
     borderRadius: BorderRadius.lg,
   },
-  slotContainer: {
-    borderRadius: BorderRadius.lg,
-  },
+  slotContainer: { borderRadius: BorderRadius.lg },
   dragging: {
     opacity: 0.85,
     shadowColor: "#000",
@@ -690,31 +788,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     gap: Spacing.sm,
   },
-  deleteSlotBtn: {
-    padding: 2,
-    opacity: 0.6,
-  },
-  addCategoryBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.xs,
-    paddingVertical: Spacing.md,
-    marginBottom: Spacing.sm,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-    borderStyle: "dashed",
-    borderRadius: BorderRadius.lg,
-  },
-  addCategoryText: {
-    color: Colors.primary,
-    fontWeight: "600",
-    fontSize: Typography.fontSize.sm,
-  },
-  dragHandle: {
-    padding: 4,
-    opacity: 0.5,
-  },
+  deleteSlotBtn: { padding: 2, opacity: 0.6 },
+  dragHandle: { padding: 4, opacity: 0.5 },
   categoryLabelContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -750,11 +825,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  itemImage: {
-    flex: 1,
-    height: 140,
-    borderRadius: BorderRadius.sm,
-  },
+  itemImage: { flex: 1, height: 140, borderRadius: BorderRadius.sm },
   itemInfo: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -785,10 +856,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.lightGray,
     marginHorizontal: 2,
   },
-  activeDot: {
-    backgroundColor: Colors.primary,
-    width: 14,
-  },
+  activeDot: { backgroundColor: Colors.primary, width: 14 },
   emptyCard: {
     backgroundColor: Colors.cardBackground,
     borderRadius: BorderRadius.lg,
@@ -799,15 +867,25 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xl,
     gap: Spacing.xs,
   },
-  emptyText: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.textSecondary,
-  },
-  actionRow: {
+  emptyText: { fontSize: Typography.fontSize.sm, color: Colors.textSecondary },
+  addOccasionBtn: {
     flexDirection: "row",
-    gap: Spacing.md,
-    marginTop: Spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.sm,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderStyle: "dashed",
+    borderRadius: BorderRadius.lg,
   },
+  addOccasionText: {
+    color: Colors.primary,
+    fontWeight: "600",
+    fontSize: Typography.fontSize.sm,
+  },
+  actionRow: { flexDirection: "row", gap: Spacing.md, marginTop: Spacing.sm },
   shareBtn: {
     flex: 1,
     flexDirection: "row",
@@ -824,7 +902,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: Typography.fontSize.sm,
   },
-  aiBtn: {
+  saveOutfitBtn: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
@@ -834,12 +912,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     gap: Spacing.xs,
   },
-  aiBtnText: {
+  saveOutfitBtnText: {
     color: Colors.white,
     fontWeight: "600",
     fontSize: Typography.fontSize.sm,
   },
-  // Modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -851,7 +928,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     paddingTop: Spacing.sm,
     paddingBottom: 40,
-    maxHeight: "70%",
+    maxHeight: "80%",
   },
   modalHandle: {
     width: 40,
@@ -877,17 +954,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.cardBorder,
   },
-  categoryOptionSelected: {
-    backgroundColor: Colors.background,
-  },
+  categoryOptionSelected: { backgroundColor: Colors.background },
   categoryOptionText: {
     fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
   },
-  categoryOptionTextSelected: {
-    fontWeight: "700",
-    color: Colors.primary,
-  },
+  categoryOptionTextSelected: { fontWeight: "700", color: Colors.primary },
   inputLabel: {
     fontSize: Typography.fontSize.sm,
     fontWeight: "600",
@@ -912,17 +984,37 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
-  catChipSelected: {
-    backgroundColor: Colors.black,
-    borderColor: Colors.black,
-  },
+  catChipSelected: { backgroundColor: Colors.black, borderColor: Colors.black },
   catChipText: {
     fontSize: Typography.fontSize.sm,
     fontWeight: "600",
     color: Colors.textPrimary,
   },
-  catChipTextSelected: {
-    color: Colors.white,
+  catChipTextSelected: { color: Colors.white },
+  newCatRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.base,
+  },
+  newOccInput: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textPrimary,
+  },
+  addCatBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: BorderRadius.pill,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
   },
   confirmSaveBtn: {
     backgroundColor: Colors.primary,

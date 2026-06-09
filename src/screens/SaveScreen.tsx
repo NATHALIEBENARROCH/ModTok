@@ -9,7 +9,6 @@ import {
   ScrollView,
   Modal,
   TextInput,
-  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Spacing, BorderRadius, Typography } from "../theme";
@@ -35,15 +34,15 @@ function OutfitCard({
             resizeMode="contain"
           />
         ))}
-        {/* Delete button */}
-        <TouchableOpacity
-          style={styles.deleteOutfitBtn}
-          onPress={onDelete}
-          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-        >
-          <Ionicons name="trash" size={13} color={Colors.white} />
-        </TouchableOpacity>
       </View>
+      {/* Delete button — sits at card level, above everything */}
+      <TouchableOpacity
+        style={styles.deleteOutfitBtn}
+        onPress={onDelete}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Ionicons name="trash" size={14} color={Colors.white} />
+      </TouchableOpacity>
       <View style={styles.outfitInfo}>
         <Text style={styles.outfitName} numberOfLines={1}>
           {outfit.name}
@@ -54,13 +53,13 @@ function OutfitCard({
   );
 }
 
-// ─── Category Row (horizontal carousel) ──────────────────────────────────────
-function CategoryRow({
-  categoryName,
+// ─── Tag Row (horizontal carousel) ───────────────────────────────────────────
+function TagRow({
+  tagName,
   outfits,
   onDeleteOutfit,
 }: {
-  categoryName: string;
+  tagName: string;
   outfits: SavedOutfit[];
   onDeleteOutfit: (id: string) => void;
 }) {
@@ -71,7 +70,7 @@ function CategoryRow({
   if (outfits.length === 0) {
     return (
       <View style={styles.categorySection}>
-        <Text style={styles.categoryTitle}>{categoryName}</Text>
+        <Text style={styles.categoryTitle}>{tagName}</Text>
         <View style={styles.emptyRow}>
           <Text style={styles.emptyRowText}>No outfits yet</Text>
         </View>
@@ -84,7 +83,7 @@ function CategoryRow({
 
   return (
     <View style={styles.categorySection}>
-      <Text style={styles.categoryTitle}>{categoryName}</Text>
+      <Text style={styles.categoryTitle}>{tagName}</Text>
       <View style={styles.carouselRow}>
         <TouchableOpacity
           onPress={prev}
@@ -141,35 +140,16 @@ export default function SaveScreen() {
   } = useOutfits();
   const [activeTab, setActiveTab] = useState("Outfits");
 
-  // Add category modal
-  const [addCatVisible, setAddCatVisible] = useState(false);
-  const [newCatName, setNewCatName] = useState("");
+  // Add tag modal
+  const [addTagVisible, setAddTagVisible] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
 
-  const handleAddCategory = () => {
-    const trimmed = newCatName.trim();
-    if (!trimmed) return;
-    if (categories.includes(trimmed)) {
-      Alert.alert("Already exists", `"${trimmed}" is already a category.`);
-      return;
-    }
+  const handleAddTag = () => {
+    const trimmed = newTagName.trim();
+    if (!trimmed || categories.includes(trimmed)) return;
     addCategory(trimmed);
-    setNewCatName("");
-    setAddCatVisible(false);
-  };
-
-  const handleDeleteCategory = (cat: string) => {
-    Alert.alert(
-      "Delete Category",
-      `Delete "${cat}"? Outfits in this category will be removed too.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => removeCategory(cat),
-        },
-      ],
-    );
+    setNewTagName("");
+    setAddTagVisible(false);
   };
 
   return (
@@ -177,10 +157,10 @@ export default function SaveScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Save</Text>
-        {activeTab === "Categories" && (
+        {activeTab === "Occasions" && (
           <TouchableOpacity
             style={styles.addBtn}
-            onPress={() => setAddCatVisible(true)}
+            onPress={() => setAddTagVisible(true)}
           >
             <Ionicons name="add" size={24} color={Colors.primary} />
           </TouchableOpacity>
@@ -189,7 +169,7 @@ export default function SaveScreen() {
 
       {/* Tabs */}
       <View style={styles.tabRow}>
-        {["Outfits", "Categories"].map((tab) => (
+        {["Outfits", "Occasions"].map((tab) => (
           <TouchableOpacity
             key={tab}
             onPress={() => setActiveTab(tab)}
@@ -207,55 +187,58 @@ export default function SaveScreen() {
         ))}
       </View>
 
-      {/* Outfits Tab — horizontal carousel per category */}
+      {/* Outfits Tab */}
       {activeTab === "Outfits" && (
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.outfitsContent}
         >
-          {categories.map((cat) => (
-            <CategoryRow
-              key={cat}
-              categoryName={cat}
-              outfits={savedOutfits.filter((o) => o.outfitCategory === cat)}
-              onDeleteOutfit={(id) => {
-                Alert.alert("Delete Outfit", "Remove this outfit?", [
-                  { text: "Cancel", style: "cancel" },
-                  {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: () => removeOutfit(id),
-                  },
-                ]);
-              }}
+          {categories.map((tag) => (
+            <TagRow
+              key={tag}
+              tagName={tag}
+              outfits={savedOutfits.filter((o) =>
+                o.outfitCategory
+                  .split(", ")
+                  .map((t) => t.trim())
+                  .includes(tag),
+              )}
+              onDeleteOutfit={(id) => removeOutfit(id)}
             />
           ))}
           <View style={{ height: 100 }} />
         </ScrollView>
       )}
 
-      {/* Categories Tab — manage list */}
-      {activeTab === "Categories" && (
+      {/* Occasions Tab */}
+      {activeTab === "Occasions" && (
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.categoriesContent}
         >
-          {categories.map((cat) => (
-            <View key={cat} style={styles.categoryItem}>
+          {categories.map((tag) => (
+            <View key={tag} style={styles.categoryItem}>
               <View style={styles.categoryItemLeft}>
                 <Ionicons
-                  name="folder-outline"
+                  name="pricetag-outline"
                   size={20}
                   color={Colors.textSecondary}
                 />
-                <Text style={styles.categoryItemText}>{cat}</Text>
+                <Text style={styles.categoryItemText}>{tag}</Text>
                 <Text style={styles.categoryItemCount}>
-                  {savedOutfits.filter((o) => o.outfitCategory === cat).length}{" "}
+                  {
+                    savedOutfits.filter((o) =>
+                      o.outfitCategory
+                        .split(", ")
+                        .map((t) => t.trim())
+                        .includes(tag),
+                    ).length
+                  }{" "}
                   outfits
                 </Text>
               </View>
               <TouchableOpacity
-                onPress={() => handleDeleteCategory(cat)}
+                onPress={() => removeCategory(tag)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <Ionicons
@@ -269,51 +252,51 @@ export default function SaveScreen() {
 
           <TouchableOpacity
             style={styles.addCategoryBtn}
-            onPress={() => setAddCatVisible(true)}
+            onPress={() => setAddTagVisible(true)}
           >
             <Ionicons
               name="add-circle-outline"
               size={20}
               color={Colors.primary}
             />
-            <Text style={styles.addCategoryText}>Add Category</Text>
+            <Text style={styles.addCategoryText}>Add Occasion</Text>
           </TouchableOpacity>
 
           <View style={{ height: 100 }} />
         </ScrollView>
       )}
 
-      {/* Add Category Modal */}
+      {/* Add Tag Modal */}
       <Modal
-        visible={addCatVisible}
+        visible={addTagVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setAddCatVisible(false)}
+        onRequestClose={() => setAddTagVisible(false)}
       >
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setAddCatVisible(false)}
+          onPress={() => setAddTagVisible(false)}
         >
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>New Category</Text>
+            <Text style={styles.modalTitle}>New Occasion</Text>
             <TextInput
               style={styles.textInput}
-              placeholder="e.g. Spring Brunch, Weekend Casual..."
+              placeholder="e.g. Evening, Vacation, Sport..."
               placeholderTextColor={Colors.textSecondary}
-              value={newCatName}
-              onChangeText={setNewCatName}
+              value={newTagName}
+              onChangeText={setNewTagName}
               autoFocus
-              onSubmitEditing={handleAddCategory}
+              onSubmitEditing={handleAddTag}
               returnKeyType="done"
             />
             <TouchableOpacity
-              style={[styles.createBtn, !newCatName.trim() && { opacity: 0.4 }]}
-              onPress={handleAddCategory}
-              disabled={!newCatName.trim()}
+              style={[styles.createBtn, !newTagName.trim() && { opacity: 0.4 }]}
+              onPress={handleAddTag}
+              disabled={!newTagName.trim()}
             >
-              <Text style={styles.createBtnText}>Create Category</Text>
+              <Text style={styles.createBtnText}>Create Occasion</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -374,7 +357,6 @@ const styles = StyleSheet.create({
   activeTabText: {
     color: Colors.white,
   },
-  // Outfits tab
   outfitsContent: {
     paddingHorizontal: Spacing.base,
   },
@@ -402,7 +384,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
-    overflow: "hidden",
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     shadowColor: "#000",
@@ -410,6 +391,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
+    position: "relative",
   },
   outfitPreview: {
     height: 130,
@@ -417,6 +399,9 @@ const styles = StyleSheet.create({
     position: "relative",
     alignItems: "center",
     justifyContent: "center",
+    borderTopLeftRadius: BorderRadius.lg,
+    borderTopRightRadius: BorderRadius.lg,
+    overflow: "hidden",
   },
   previewImage: {
     position: "absolute",
@@ -469,15 +454,14 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 8,
     right: 8,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    borderRadius: 13,
     width: 26,
     height: 26,
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 10,
+    zIndex: 20,
   },
-  // Categories tab
   categoriesContent: {
     paddingHorizontal: Spacing.base,
     paddingTop: Spacing.sm,
@@ -486,13 +470,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.md,
-    marginBottom: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cardBorder,
   },
   categoryItemLeft: {
     flexDirection: "row",
@@ -511,21 +491,14 @@ const styles = StyleSheet.create({
   addCategoryBtn: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.xs,
-    paddingVertical: Spacing.md,
-    marginTop: Spacing.sm,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-    borderStyle: "dashed",
-    borderRadius: BorderRadius.lg,
+    gap: Spacing.sm,
+    paddingVertical: Spacing.base,
   },
   addCategoryText: {
+    fontSize: Typography.fontSize.base,
     color: Colors.primary,
     fontWeight: "600",
-    fontSize: Typography.fontSize.sm,
   },
-  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -533,34 +506,31 @@ const styles = StyleSheet.create({
   },
   modalSheet: {
     backgroundColor: Colors.white,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: Spacing.sm,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    padding: Spacing.xl,
     paddingBottom: 40,
-    paddingHorizontal: Spacing.base,
   },
   modalHandle: {
-    width: 40,
+    width: 36,
     height: 4,
     borderRadius: 2,
     backgroundColor: Colors.lightGray,
     alignSelf: "center",
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.base,
   },
   modalTitle: {
-    fontSize: Typography.fontSize.base,
+    fontSize: Typography.fontSize.lg,
     fontWeight: "700",
     color: Colors.textPrimary,
-    textAlign: "center",
     marginBottom: Spacing.base,
   },
   textInput: {
-    backgroundColor: Colors.background,
-    borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
+    borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
     fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
     marginBottom: Spacing.base,
@@ -568,12 +538,12 @@ const styles = StyleSheet.create({
   createBtn: {
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.pill,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
     alignItems: "center",
   },
   createBtnText: {
     color: Colors.white,
+    fontSize: Typography.fontSize.base,
     fontWeight: "700",
-    fontSize: Typography.fontSize.sm,
   },
 });
