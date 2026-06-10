@@ -7,7 +7,7 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  Dimensions,
+  useWindowDimensions,
   Modal,
   FlatList,
   PanResponder,
@@ -19,7 +19,6 @@ import { Colors, Spacing, BorderRadius, Typography } from "../theme";
 import { MOCK_CLOSET_ITEMS, ClothingItem } from "../data/mockData";
 import { useOutfits } from "../context/OutfitContext";
 
-const { width } = Dimensions.get("window");
 
 const ALL_CATEGORIES = [
   "Coats",
@@ -53,6 +52,7 @@ function buildSlot(cat: string): OutfitSlot {
 }
 
 export default function StyleScreen() {
+  const { width } = useWindowDimensions();
   const initialCategories = [
     "Coats",
     "Jackets",
@@ -226,6 +226,7 @@ export default function StyleScreen() {
     <SafeAreaView style={styles.safeArea}>
       {/* Header */}
       <View style={styles.header}>
+        <View style={{ width: 36 }} />
         <Text style={styles.title}>Style</Text>
         <TouchableOpacity onPress={handleSave} style={styles.saveBtn}>
           <Ionicons
@@ -730,10 +731,12 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
   },
   title: {
+    flex: 1,
     fontSize: Typography.fontSize.xl,
     fontWeight: "700",
     color: Colors.textPrimary,
     letterSpacing: -0.5,
+    textAlign: "center",
   },
   saveBtn: {
     width: 36,

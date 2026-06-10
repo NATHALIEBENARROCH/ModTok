@@ -10,6 +10,7 @@ import {
   TextInput,
   Alert,
   Image,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -25,6 +26,8 @@ const COLORS_LIST = ['White', 'Black', 'Navy', 'Beige', 'Brown', 'Pink', 'Red', 
 
 export default function AddItemScreen() {
   const navigation = useNavigation<any>();
+  const { width } = useWindowDimensions();
+  const isNarrow = width < 480;
   const [caption, setCaption] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedSeason, setSelectedSeason] = useState('');
@@ -80,7 +83,7 @@ export default function AddItemScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Image + Caption Row */}
-        <View style={styles.imageRow}>
+        <View style={[styles.imageRow, isNarrow && styles.imageRowNarrow]}>
           <TouchableOpacity onPress={handleAddPhoto} style={styles.imagePicker}>
             {imageUri ? (
               <Image source={{ uri: imageUri }} style={styles.selectedImage} resizeMode="contain" />
@@ -110,7 +113,7 @@ export default function AddItemScreen() {
         </View>
 
         {/* Brand & Price */}
-        <View style={styles.fieldRow}>
+        <View style={[styles.fieldRow, isNarrow && styles.fieldRowNarrow]}>
           <View style={styles.fieldHalf}>
             <Text style={styles.fieldLabel}>Brand</Text>
             <TextInput
@@ -229,9 +232,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   headerTitle: {
+    flex: 1,
     fontSize: Typography.fontSize.md,
     fontWeight: '700',
     color: Colors.textPrimary,
+    textAlign: 'center',
   },
   saveText: {
     fontSize: Typography.fontSize.base,
@@ -249,6 +254,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: Spacing.base,
     gap: Spacing.md,
+  },
+  imageRowNarrow: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
   },
   imagePicker: {
     width: 100,
@@ -305,6 +314,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.md,
     marginBottom: Spacing.base,
+  },
+  fieldRowNarrow: {
+    flexDirection: 'column',
   },
   fieldHalf: {
     flex: 1,

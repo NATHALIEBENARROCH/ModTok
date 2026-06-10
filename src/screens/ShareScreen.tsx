@@ -7,14 +7,13 @@ import {
   StyleSheet,
   SafeAreaView,
   FlatList,
-  Dimensions,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { Colors, Spacing, BorderRadius, Typography } from "../theme";
 import { MOCK_CLOSET_ITEMS, SocialPost } from "../data/mockData";
 import { useOutfits } from "../context/OutfitContext";
 
-const { width } = Dimensions.get("window");
 
 function SocialCard({
   post,
@@ -103,11 +102,13 @@ function SocialCard({
 
 export default function ShareScreen() {
   const { socialPosts: posts, toggleLike: handleLike } = useOutfits();
+  const { width } = useWindowDimensions();
 
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Header */}
       <View style={styles.header}>
+        <View style={{ width: 36 }} />
         <Text style={styles.title}>Share</Text>
         <View style={styles.headerRight}>
           <TouchableOpacity style={styles.headerBtn}>
@@ -178,10 +179,12 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
   },
   title: {
+    flex: 1,
     fontSize: Typography.fontSize.xl,
     fontWeight: "700",
     color: Colors.textPrimary,
     letterSpacing: -0.5,
+    textAlign: "center",
   },
   headerRight: {
     flexDirection: "row",
@@ -195,6 +198,7 @@ const styles = StyleSheet.create({
   },
   storyRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     paddingHorizontal: Spacing.base,
     paddingBottom: Spacing.md,
     gap: Spacing.md,

@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import ModTokLogo from '../components/ModTokLogo';
@@ -152,6 +153,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: Spacing.xl,
     justifyContent: 'center',
+    alignItems: 'stretch',
   },
   logoContainer: {
     alignItems: 'center',

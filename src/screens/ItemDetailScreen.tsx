@@ -7,6 +7,7 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -15,6 +16,7 @@ import { ClothingItem } from '../data/mockData';
 
 export default function ItemDetailScreen() {
   const navigation = useNavigation<any>();
+  const { width } = useWindowDimensions();
   const route = useRoute<any>();
   const item: ClothingItem = route.params?.item;
   const [isFavorite, setIsFavorite] = useState(item?.isFavorite || false);
@@ -146,7 +148,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     marginHorizontal: Spacing.base,
     borderRadius: BorderRadius.xl,
-    height: 300,
+    height: 280,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -154,7 +156,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.base,
   },
   image: {
-    width: 220,
+    width: '70%',
     height: 260,
   },
   detailsContainer: {

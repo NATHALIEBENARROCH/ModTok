@@ -14,7 +14,7 @@ The application has been built using **React Native** and **Expo**, providing a 
 ## Screens Implemented
 
 1. **Sign In / Onboarding**: Custom splash screen and login interface with social auth options
-2. **Home (Daily Inspiration)**: Category browsing, quick stats, and AI outfit suggestions
+2. **Home (Sort)**: Category browsing, quick stats, and AI outfit suggestions
 3. **Style (Outfit Builder)**: Interactive swipe-based outfit creation tool
 4. **Share (Social Feed)**: Instagram-style feed with user stories, outfit posts, and interactions
 5. **Add Item**: Comprehensive form for cataloguing new items with categories, seasons, and colors
@@ -34,16 +34,19 @@ The application has been built using **React Native** and **Expo**, providing a 
 ### Installation
 
 1. Clone the repository and navigate to the project folder:
+
    ```bash
    cd modtok
    ```
 
 2. Install dependencies:
+
    ```bash
    pnpm install
    ```
 
 3. Start the development server:
+
    ```bash
    pnpm start
    ```
@@ -57,11 +60,13 @@ This project is pre-configured for Expo Application Services (EAS) to streamline
 ### 1. Setup EAS CLI
 
 Install the EAS command-line tool globally:
+
 ```bash
 npm install -g eas-cli
 ```
 
 Log in to your Expo account:
+
 ```bash
 eas login
 ```
@@ -82,7 +87,7 @@ Update the `eas.json` file in the root directory with your Apple Developer crede
 }
 ```
 
-*Note: You can find your `ascAppId` in App Store Connect under App Information > Apple ID.*
+_Note: You can find your `ascAppId` in App Store Connect under App Information > Apple ID._
 
 ### 3. Build for Production
 

@@ -7,7 +7,7 @@ import {
   Image,
   StyleSheet,
   SafeAreaView,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -15,7 +15,6 @@ import ModTokLogo from '../components/ModTokLogo';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
 import { MOCK_CLOSET_ITEMS, CATEGORIES, CURRENT_USER } from '../data/mockData';
 
-const { width } = Dimensions.get('window');
 
 const CATEGORY_CARDS = [
   { category: 'Dresses', label: 'Browse your Dresses', items: MOCK_CLOSET_ITEMS.filter(i => i.category === 'Dresses') },
@@ -39,6 +38,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
+        <View style={{ width: 36 }} />
         <ModTokLogo size="small" />
         <TouchableOpacity style={styles.notificationBtn}>
           <Ionicons name="notifications-outline" size={22} color={Colors.black} />
@@ -50,9 +50,9 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Daily Inspiration Header */}
+        {/* Sort Header */}
         <View style={styles.inspirationHeader}>
-          <Text style={styles.inspirationTitle}>Daily Inspiration</Text>
+          <Text style={styles.inspirationTitle}>Sort</Text>
           <Text style={styles.inspirationDate}>Today {dateString}</Text>
         </View>
 

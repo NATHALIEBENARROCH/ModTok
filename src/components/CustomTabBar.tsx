@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Text,
   Platform,
+  useWindowDimensions,
 } from "react-native";
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
@@ -56,12 +57,14 @@ export default function CustomTabBar({
   navigation,
 }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const maxTabWidth = Math.min(width - 40, 390);
 
   return (
     <View
       style={[
         styles.wrapper,
-        { paddingBottom: insets.bottom > 0 ? insets.bottom - 4 : 8 },
+        { paddingBottom: insets.bottom > 0 ? insets.bottom - 4 : 8, maxWidth: maxTabWidth, alignSelf: 'center' },
       ]}
     >
       <View style={styles.container}>

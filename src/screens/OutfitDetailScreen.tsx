@@ -7,6 +7,7 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -15,6 +16,7 @@ import { Outfit } from '../data/mockData';
 
 export default function OutfitDetailScreen() {
   const navigation = useNavigation<any>();
+  const { width } = useWindowDimensions();
   const route = useRoute<any>();
   const outfit: Outfit = route.params?.outfit;
 

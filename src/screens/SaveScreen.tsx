@@ -9,6 +9,7 @@ import {
   ScrollView,
   Modal,
   TextInput,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Spacing, BorderRadius, Typography } from "../theme";
@@ -131,6 +132,7 @@ function TagRow({
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function SaveScreen() {
+  const { width } = useWindowDimensions();
   const {
     savedOutfits,
     categories,
@@ -156,15 +158,16 @@ export default function SaveScreen() {
     <SafeAreaView style={styles.safeArea}>
       {/* Header */}
       <View style={styles.header}>
+        <View style={{ width: 36 }} />
         <Text style={styles.title}>Save</Text>
-        {activeTab === "Occasions" && (
+        {activeTab === "Occasions" ? (
           <TouchableOpacity
             style={styles.addBtn}
             onPress={() => setAddTagVisible(true)}
           >
             <Ionicons name="add" size={24} color={Colors.primary} />
           </TouchableOpacity>
-        )}
+        ) : <View style={{ width: 36 }} />}
       </View>
 
       {/* Tabs */}
@@ -320,10 +323,12 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
   },
   title: {
+    flex: 1,
     fontSize: Typography.fontSize.xl,
     fontWeight: "700",
     color: Colors.textPrimary,
     letterSpacing: -0.5,
+    textAlign: "center",
   },
   addBtn: {
     width: 36,

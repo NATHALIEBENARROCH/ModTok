@@ -16,6 +16,8 @@ import ProfileScreen from "../screens/ProfileScreen";
 import ClosetBrowseScreen from "../screens/ClosetBrowseScreen";
 import ItemDetailScreen from "../screens/ItemDetailScreen";
 import OutfitDetailScreen from "../screens/OutfitDetailScreen";
+import SettingsScreen from "../screens/SettingsScreen";
+import EditProfileScreen from "../screens/EditProfileScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -52,6 +54,8 @@ export default function AppNavigator() {
         <Stack.Screen name="ClosetBrowse" component={ClosetBrowseScreen} />
         <Stack.Screen name="ItemDetail" component={ItemDetailScreen} />
         <Stack.Screen name="OutfitDetail" component={OutfitDetailScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

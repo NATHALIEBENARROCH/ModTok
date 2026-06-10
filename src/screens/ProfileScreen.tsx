@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -7,21 +7,21 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  FlatList,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
-import { CURRENT_USER, MOCK_CLOSET_ITEMS, MOCK_OUTFITS } from '../data/mockData';
-import ClothingCard from '../components/ClothingCard';
+import { CURRENT_USER, MOCK_CLOSET_ITEMS } from '../data/mockData';
 
-const { width } = Dimensions.get('window');
-const GRID_ITEM_SIZE = (width - Spacing.base * 2 - Spacing.xs * 4) / 3;
+// Use closet item images as shared post placeholders
+const SHARED_POSTS = MOCK_CLOSET_ITEMS.map((item) => ({
+  id: item.id,
+  image: item.image,
+  name: item.name,
+}));
 
-const PROFILE_TABS = ['Closet', 'Outfits', 'Shared'];
-
-export default function ProfileScreen() {
-  const [activeTab, setActiveTab] = useState('Closet');
+export default function ProfileScreen({ navigation }: { navigation: any }) {
+  const { width } = useWindowDimensions();
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -30,7 +30,7 @@ export default function ProfileScreen() {
         <View style={styles.header}>
           <View style={{ width: 36 }} />
           <Text style={styles.username}>{CURRENT_USER.username}</Text>
-          <TouchableOpacity style={styles.settingsBtn}>
+          <TouchableOpacity style={styles.settingsBtn} onPress={() => navigation.navigate('Settings')}>
             <Ionicons name="settings-outline" size={22} color={Colors.black} />
           </TouchableOpacity>
         </View>
@@ -43,11 +43,9 @@ export default function ProfileScreen() {
               <Ionicons name="camera" size={14} color={Colors.white} />
             </TouchableOpacity>
           </View>
-
           <View style={styles.profileInfo}>
             <Text style={styles.displayName}>{CURRENT_USER.displayName}</Text>
             <Text style={styles.bio}>{CURRENT_USER.bio}</Text>
-
             {/* Stats */}
             <View style={styles.statsRow}>
               <View style={styles.stat}>
@@ -70,10 +68,9 @@ export default function ProfileScreen() {
                 <Text style={styles.statLabel}>Following</Text>
               </View>
             </View>
-
             {/* Action Buttons */}
             <View style={styles.actionRow}>
-              <TouchableOpacity style={styles.editProfileBtn}>
+              <TouchableOpacity style={styles.editProfileBtn} onPress={() => navigation.navigate('EditProfile')}>
                 <Text style={styles.editProfileText}>Edit Profile</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.shareProfileBtn}>
@@ -95,63 +92,18 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Tabs */}
-        <View style={styles.tabRow}>
-          {PROFILE_TABS.map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              onPress={() => setActiveTab(tab)}
-              style={[styles.tab, activeTab === tab && styles.activeTab]}
-            >
-              <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-                {tab}
-              </Text>
-            </TouchableOpacity>
+        {/* Shared Grid — Instagram style */}
+        <View style={styles.grid}>
+          {SHARED_POSTS.map((post) => (
+            <View key={post.id} style={styles.tile}>
+              <Image
+                source={{ uri: post.image }}
+                style={styles.tileImage}
+                resizeMode="cover"
+              />
+            </View>
           ))}
         </View>
-
-        {/* Content */}
-        {activeTab === 'Closet' && (
-          <View style={styles.grid}>
-            {MOCK_CLOSET_ITEMS.map((item) => (
-              <ClothingCard
-                key={item.id}
-                item={item}
-                size="medium"
-                showFavorite
-              />
-            ))}
-          </View>
-        )}
-
-        {activeTab === 'Outfits' && (
-          <View style={styles.outfitsGrid}>
-            {MOCK_OUTFITS.map((outfit) => (
-              <View key={outfit.id} style={styles.outfitCard}>
-                <View style={styles.outfitImages}>
-                  {outfit.items.slice(0, 2).map((item) => (
-                    <Image
-                      key={item.id}
-                      source={{ uri: item.image }}
-                      style={styles.outfitThumb}
-                      resizeMode="contain"
-                    />
-                  ))}
-                </View>
-                <Text style={styles.outfitName} numberOfLines={1}>{outfit.name}</Text>
-                <Text style={styles.outfitOccasion}>{outfit.occasion}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {activeTab === 'Shared' && (
-          <View style={styles.emptyState}>
-            <Ionicons name="share-social-outline" size={48} color={Colors.mediumGray} />
-            <Text style={styles.emptyTitle}>No Shared Outfits</Text>
-            <Text style={styles.emptySubtitle}>Share your outfits to build your following.</Text>
-          </View>
-        )}
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -286,7 +238,7 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.base,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
-    marginBottom: Spacing.base,
+    marginBottom: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.primaryLight,
     gap: Spacing.sm,
@@ -314,86 +266,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: Typography.fontSize.xs,
   },
-  tabRow: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.base,
-    marginBottom: Spacing.base,
-    gap: Spacing.sm,
-  },
-  tab: {
-    paddingHorizontal: Spacing.base,
-    paddingVertical: 7,
-    borderRadius: BorderRadius.pill,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-  },
-  activeTab: {
-    backgroundColor: Colors.black,
-    borderColor: Colors.black,
-  },
-  tabText: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  activeTabText: {
-    color: Colors.white,
-  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: Spacing.base,
+    width: '100%',
   },
-  outfitsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: Spacing.base,
-    gap: Spacing.md,
+  tile: {
+    width: '33.333%' as any,
+    aspectRatio: 1,
+    overflow: 'hidden',
+    borderWidth: 0.5,
+    borderColor: Colors.white,
   },
-  outfitCard: {
-    width: (width - Spacing.base * 2 - Spacing.md) / 2,
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-  },
-  outfitImages: {
-    flexDirection: 'row',
-    height: 80,
-    marginBottom: Spacing.xs,
-  },
-  outfitThumb: {
-    flex: 1,
-    height: 80,
-  },
-  outfitName: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  outfitOccasion: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.textSecondary,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.xxxl,
-    paddingVertical: Spacing.xxxl,
-  },
-  emptyTitle: {
-    fontSize: Typography.fontSize.lg,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginTop: Spacing.base,
-    marginBottom: Spacing.sm,
-  },
-  emptySubtitle: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
+  tileImage: {
+    width: '100%',
+    height: '100%',
   },
 });

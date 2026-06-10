@@ -6,17 +6,20 @@ import {
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
-  ScrollView,
+  Modal,
   FlatList,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
 import { MOCK_CLOSET_ITEMS, ClothingItem } from '../data/mockData';
 
-const { width } = Dimensions.get('window');
-
 const SELL_TABS = ['For Sale', 'For Rent', 'Sold'];
+
+const CATEGORIES = [
+  'All', 'Coats', 'Jackets', 'Cardigans', 'Sweaters', 'Blouses',
+  'T shirts', 'Dresses', 'Pants', 'Skirts', 'Shorts', 'Shoes', 'Bags',
+];
 
 function SellItemCard({ item }: { item: ClothingItem }) {
   const [listed, setListed] = useState(item.forSale || false);
@@ -74,15 +77,23 @@ function SellItemCard({ item }: { item: ClothingItem }) {
 
 export default function SellScreen() {
   const [activeTab, setActiveTab] = useState('For Sale');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const { width } = useWindowDimensions();
+
   const forSaleItems = MOCK_CLOSET_ITEMS.filter(i => i.forSale);
   const allItems = MOCK_CLOSET_ITEMS;
 
-  const displayItems = activeTab === 'For Sale' ? forSaleItems : activeTab === 'Sold' ? [] : allItems;
+  const baseItems = activeTab === 'For Sale' ? forSaleItems : activeTab === 'Sold' ? [] : allItems;
+  const displayItems = selectedCategory === 'All'
+    ? baseItems
+    : baseItems.filter(i => i.category === selectedCategory);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Header */}
       <View style={styles.header}>
+        <View style={{ width: 36 }} />
         <Text style={styles.title}>Sell</Text>
         <TouchableOpacity style={styles.infoBtn}>
           <Ionicons name="information-circle-outline" size={22} color={Colors.black} />
@@ -103,19 +114,32 @@ export default function SellScreen() {
         </View>
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabRow}>
-        {SELL_TABS.map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            onPress={() => setActiveTab(tab)}
-            style={[styles.tab, activeTab === tab && styles.activeTab]}
-          >
-            <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-              {tab}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      {/* Tabs + Category Filter Row */}
+      <View style={styles.filterRow}>
+        <View style={styles.tabRow}>
+          {SELL_TABS.map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              onPress={() => setActiveTab(tab)}
+              style={[styles.tab, activeTab === tab && styles.activeTab]}
+            >
+              <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Category Dropdown Pill */}
+        <TouchableOpacity
+          style={styles.categoryPill}
+          onPress={() => setShowCategoryPicker(true)}
+        >
+          <Text style={styles.categoryPillText}>
+            {selectedCategory === 'All' ? 'All Categories' : selectedCategory}
+          </Text>
+          <Ionicons name="chevron-down" size={14} color={Colors.white} />
+        </TouchableOpacity>
       </View>
 
       {/* Items */}
@@ -146,6 +170,51 @@ export default function SellScreen() {
           ListFooterComponent={<View style={{ height: 100 }} />}
         />
       )}
+
+      {/* Category Picker Bottom Sheet */}
+      <Modal
+        visible={showCategoryPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCategoryPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowCategoryPicker(false)}
+        />
+        <View style={styles.bottomSheet}>
+          <View style={styles.bottomSheetHandle} />
+          <Text style={styles.bottomSheetTitle}>Choose Category</Text>
+          <FlatList
+            data={CATEGORIES}
+            keyExtractor={(item) => item}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[
+                  styles.categoryOption,
+                  selectedCategory === item && styles.categoryOptionActive,
+                ]}
+                onPress={() => {
+                  setSelectedCategory(item);
+                  setShowCategoryPicker(false);
+                }}
+              >
+                <Text style={[
+                  styles.categoryOptionText,
+                  selectedCategory === item && styles.categoryOptionTextActive,
+                ]}>
+                  {item}
+                </Text>
+                {selectedCategory === item && (
+                  <Ionicons name="checkmark" size={18} color={Colors.primary} />
+                )}
+              </TouchableOpacity>
+            )}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -164,10 +233,12 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
   },
   title: {
+    flex: 1,
     fontSize: Typography.fontSize.xl,
     fontWeight: '700',
     color: Colors.textPrimary,
     letterSpacing: -0.5,
+    textAlign: 'center',
   },
   infoBtn: {
     width: 36,
@@ -213,10 +284,13 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 4,
   },
-  tabRow: {
-    flexDirection: 'row',
+  filterRow: {
     paddingHorizontal: Spacing.base,
     marginBottom: Spacing.base,
+    gap: Spacing.sm,
+  },
+  tabRow: {
+    flexDirection: 'row',
     gap: Spacing.sm,
   },
   tab: {
@@ -238,6 +312,21 @@ const styles = StyleSheet.create({
   },
   activeTabText: {
     color: Colors.white,
+  },
+  categoryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.black,
+    borderRadius: BorderRadius.pill,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: 7,
+    gap: 6,
+  },
+  categoryPillText: {
+    color: Colors.white,
+    fontSize: Typography.fontSize.sm,
+    fontWeight: '600',
   },
   list: {
     paddingHorizontal: Spacing.base,
@@ -385,5 +474,61 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontWeight: '700',
     fontSize: Typography.fontSize.sm,
+  },
+  // Modal / Bottom Sheet
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  bottomSheet: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    paddingBottom: 40,
+    maxHeight: '70%',
+  },
+  bottomSheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: Colors.cardBorder,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  bottomSheetTitle: {
+    fontSize: Typography.fontSize.md,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cardBorder,
+    marginHorizontal: Spacing.base,
+    marginBottom: Spacing.xs,
+  },
+  categoryOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+  },
+  categoryOptionActive: {
+    backgroundColor: Colors.background,
+  },
+  categoryOptionText: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.textPrimary,
+    fontWeight: '500',
+  },
+  categoryOptionTextActive: {
+    color: Colors.primary,
+    fontWeight: '700',
+  },
+  separator: {
+    height: 1,
+    backgroundColor: Colors.cardBorder,
+    marginHorizontal: Spacing.base,
   },
 });
