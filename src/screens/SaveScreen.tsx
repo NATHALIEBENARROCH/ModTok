@@ -2,66 +2,57 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
   ScrollView,
   Modal,
   TextInput,
-  useWindowDimensions,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Spacing, BorderRadius, Typography } from "../theme";
-import { useOutfits, SavedOutfit } from "../context/OutfitContext";
+import { useOutfit, Outfit, Occasion } from "../context/OutfitContext";
 
 // ─── Outfit Card ─────────────────────────────────────────────────────────────
 function OutfitCard({
   outfit,
   onDelete,
 }: {
-  outfit: SavedOutfit;
+  outfit: Outfit;
   onDelete: () => void;
 }) {
-  const previewItems = outfit.items.slice(0, 3);
   return (
     <View style={styles.outfitCard}>
       <View style={styles.outfitPreview}>
-        {previewItems.map((item, i) => (
-          <Image
-            key={item.id}
-            source={{ uri: item.image }}
-            style={[styles.previewImage, { left: i * 22, zIndex: 3 - i }]}
-            resizeMode="contain"
-          />
-        ))}
+        <Ionicons name="image-outline" size={48} color={Colors.lightGray} />
+        {/* Delete button */}
+        <TouchableOpacity
+          style={styles.deleteOutfitBtn}
+          onPress={onDelete}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="trash" size={14} color={Colors.white} />
+        </TouchableOpacity>
       </View>
-      {/* Delete button — sits at card level, above everything */}
-      <TouchableOpacity
-        style={styles.deleteOutfitBtn}
-        onPress={onDelete}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-      >
-        <Ionicons name="trash" size={14} color={Colors.white} />
-      </TouchableOpacity>
       <View style={styles.outfitInfo}>
         <Text style={styles.outfitName} numberOfLines={1}>
           {outfit.name}
         </Text>
-        <Text style={styles.outfitMeta}>{outfit.items.length} items</Text>
+        <Text style={styles.outfitMeta}>{outfit.item_ids.length} items</Text>
       </View>
     </View>
   );
 }
 
-// ─── Tag Row (horizontal carousel) ───────────────────────────────────────────
-function TagRow({
-  tagName,
+// ─── Occasion Row (horizontal carousel) ───────────────────────────────────────
+function OccasionRow({
+  occasion,
   outfits,
   onDeleteOutfit,
 }: {
-  tagName: string;
-  outfits: SavedOutfit[];
+  occasion: Occasion;
+  outfits: Outfit[];
   onDeleteOutfit: (id: string) => void;
 }) {
   const [index, setIndex] = useState(0);
@@ -71,7 +62,7 @@ function TagRow({
   if (outfits.length === 0) {
     return (
       <View style={styles.categorySection}>
-        <Text style={styles.categoryTitle}>{tagName}</Text>
+        <Text style={styles.categoryTitle}>{occasion.name}</Text>
         <View style={styles.emptyRow}>
           <Text style={styles.emptyRowText}>No outfits yet</Text>
         </View>
@@ -84,7 +75,7 @@ function TagRow({
 
   return (
     <View style={styles.categorySection}>
-      <Text style={styles.categoryTitle}>{tagName}</Text>
+      <Text style={styles.categoryTitle}>{occasion.name}</Text>
       <View style={styles.carouselRow}>
         <TouchableOpacity
           onPress={prev}
@@ -132,26 +123,49 @@ function TagRow({
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function SaveScreen() {
-  const { width } = useWindowDimensions();
-  const {
-    savedOutfits,
-    categories,
-    addCategory,
-    removeCategory,
-    removeOutfit,
-  } = useOutfits();
+  const { occasions, outfits, addOccasion, deleteOccasion } = useOutfit();
   const [activeTab, setActiveTab] = useState("Outfits");
 
-  // Add tag modal
-  const [addTagVisible, setAddTagVisible] = useState(false);
-  const [newTagName, setNewTagName] = useState("");
+  // Add occasion modal
+  const [addOccasionVisible, setAddOccasionVisible] = useState(false);
+  const [newOccasionName, setNewOccasionName] = useState("");
 
-  const handleAddTag = () => {
-    const trimmed = newTagName.trim();
-    if (!trimmed || categories.includes(trimmed)) return;
-    addCategory(trimmed);
-    setNewTagName("");
-    setAddTagVisible(false);
+  const handleAddOccasion = async () => {
+    const trimmed = newOccasionName.trim();
+    if (!trimmed) return;
+    if (occasions.some((o) => o.name.toLowerCase() === trimmed.toLowerCase())) {
+      Alert.alert("Already exists", `"${trimmed}" is already an occasion.`);
+      return;
+    }
+    try {
+      await addOccasion(trimmed);
+      setNewOccasionName("");
+      setAddOccasionVisible(false);
+    } catch (error) {
+      Alert.alert("Error", "Failed to add occasion. Please try again.");
+    }
+  };
+
+  const handleDeleteOccasion = (occasionId: string, occasionName: string) => {
+    Alert.alert("Delete Occasion", `Delete "${occasionName}"?`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteOccasion(occasionId);
+          } catch (error) {
+            Alert.alert("Error", "Failed to delete occasion.");
+          }
+        },
+      },
+    ]);
+  };
+
+  // Get outfits for each occasion
+  const getOutfitsForOccasion = (occasionId: string): Outfit[] => {
+    return outfits.filter((o) => o.occasion_id === occasionId);
   };
 
   return (
@@ -163,11 +177,13 @@ export default function SaveScreen() {
         {activeTab === "Occasions" ? (
           <TouchableOpacity
             style={styles.addBtn}
-            onPress={() => setAddTagVisible(true)}
+            onPress={() => setAddOccasionVisible(true)}
           >
             <Ionicons name="add" size={24} color={Colors.primary} />
           </TouchableOpacity>
-        ) : <View style={{ width: 36 }} />}
+        ) : (
+          <View style={{ width: 36 }} />
+        )}
       </View>
 
       {/* Tabs */}
@@ -190,72 +206,106 @@ export default function SaveScreen() {
         ))}
       </View>
 
-      {/* Outfits Tab */}
+      {/* Outfits Tab — horizontal carousel per occasion */}
       {activeTab === "Outfits" && (
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.outfitsContent}
         >
-          {categories.map((tag) => (
-            <TagRow
-              key={tag}
-              tagName={tag}
-              outfits={savedOutfits.filter((o) =>
-                o.outfitCategory
-                  .split(", ")
-                  .map((t) => t.trim())
-                  .includes(tag),
-              )}
-              onDeleteOutfit={(id) => removeOutfit(id)}
-            />
-          ))}
+          {occasions.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons
+                name="folder-outline"
+                size={48}
+                color={Colors.lightGray}
+              />
+              <Text style={styles.emptyStateText}>No occasions yet</Text>
+              <Text style={styles.emptyStateSubtext}>
+                Create an occasion to organize your outfits
+              </Text>
+            </View>
+          ) : (
+            occasions.map((occasion) => (
+              <OccasionRow
+                key={occasion.id}
+                occasion={occasion}
+                outfits={getOutfitsForOccasion(occasion.id)}
+                onDeleteOutfit={(outfitId) => {
+                  Alert.alert("Delete Outfit", "Remove this outfit?", [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Delete",
+                      style: "destructive",
+                      onPress: () => {
+                        console.log("Delete outfit:", outfitId);
+                      },
+                    },
+                  ]);
+                }}
+              />
+            ))
+          )}
           <View style={{ height: 100 }} />
         </ScrollView>
       )}
 
-      {/* Occasions Tab */}
+      {/* Occasions Tab — manage list */}
       {activeTab === "Occasions" && (
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.categoriesContent}
         >
-          {categories.map((tag) => (
-            <View key={tag} style={styles.categoryItem}>
-              <View style={styles.categoryItemLeft}>
-                <Ionicons
-                  name="pricetag-outline"
-                  size={20}
-                  color={Colors.textSecondary}
-                />
-                <Text style={styles.categoryItemText}>{tag}</Text>
-                <Text style={styles.categoryItemCount}>
-                  {
-                    savedOutfits.filter((o) =>
-                      o.outfitCategory
-                        .split(", ")
-                        .map((t) => t.trim())
-                        .includes(tag),
-                    ).length
-                  }{" "}
-                  outfits
-                </Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => removeCategory(tag)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons
-                  name="trash-outline"
-                  size={18}
-                  color={Colors.textSecondary}
-                />
-              </TouchableOpacity>
+          {occasions.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons
+                name="pricetag-outline"
+                size={48}
+                color={Colors.lightGray}
+              />
+              <Text style={styles.emptyStateText}>No occasions yet</Text>
+              <Text style={styles.emptyStateSubtext}>
+                Tap the + button to create your first occasion
+              </Text>
             </View>
-          ))}
+          ) : (
+            occasions.map((occasion) => {
+              const occasionOutfitCount = getOutfitsForOccasion(
+                occasion.id,
+              ).length;
+              return (
+                <View key={occasion.id} style={styles.categoryItem}>
+                  <View style={styles.categoryItemLeft}>
+                    <Ionicons
+                      name="pricetag-outline"
+                      size={20}
+                      color={Colors.textSecondary}
+                    />
+                    <Text style={styles.categoryItemText}>{occasion.name}</Text>
+                    <Text style={styles.categoryItemCount}>
+                      {occasionOutfitCount} outfit
+                      {occasionOutfitCount !== 1 ? "s" : ""}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() =>
+                      handleDeleteOccasion(occasion.id, occasion.name)
+                    }
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons
+                      name="trash-outline"
+                      size={18}
+                      color={Colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                </View>
+              );
+            })
+          )}
 
           <TouchableOpacity
             style={styles.addCategoryBtn}
-            onPress={() => setAddTagVisible(true)}
+            onPress={() => setAddOccasionVisible(true)}
           >
             <Ionicons
               name="add-circle-outline"
@@ -269,17 +319,17 @@ export default function SaveScreen() {
         </ScrollView>
       )}
 
-      {/* Add Tag Modal */}
+      {/* Add Occasion Modal */}
       <Modal
-        visible={addTagVisible}
+        visible={addOccasionVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setAddTagVisible(false)}
+        onRequestClose={() => setAddOccasionVisible(false)}
       >
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setAddTagVisible(false)}
+          onPress={() => setAddOccasionVisible(false)}
         >
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
@@ -288,16 +338,19 @@ export default function SaveScreen() {
               style={styles.textInput}
               placeholder="e.g. Evening, Vacation, Sport..."
               placeholderTextColor={Colors.textSecondary}
-              value={newTagName}
-              onChangeText={setNewTagName}
+              value={newOccasionName}
+              onChangeText={setNewOccasionName}
               autoFocus
-              onSubmitEditing={handleAddTag}
+              onSubmitEditing={handleAddOccasion}
               returnKeyType="done"
             />
             <TouchableOpacity
-              style={[styles.createBtn, !newTagName.trim() && { opacity: 0.4 }]}
-              onPress={handleAddTag}
-              disabled={!newTagName.trim()}
+              style={[
+                styles.createBtn,
+                !newOccasionName.trim() && { opacity: 0.4 },
+              ]}
+              onPress={handleAddOccasion}
+              disabled={!newOccasionName.trim()}
             >
               <Text style={styles.createBtnText}>Create Occasion</Text>
             </TouchableOpacity>
@@ -408,11 +461,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: BorderRadius.lg,
     overflow: "hidden",
   },
-  previewImage: {
-    position: "absolute",
-    width: 65,
-    height: 85,
-  },
   outfitInfo: {
     padding: Spacing.sm,
   },
@@ -454,6 +502,25 @@ const styles = StyleSheet.create({
   emptyRowText: {
     fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: Spacing.xl,
+  },
+  emptyStateText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+    marginTop: Spacing.md,
+  },
+  emptyStateSubtext: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
+    textAlign: "center",
+    paddingHorizontal: Spacing.base,
   },
   deleteOutfitBtn: {
     position: "absolute",
@@ -498,11 +565,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.sm,
     paddingVertical: Spacing.base,
+    marginTop: Spacing.sm,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderStyle: "dashed",
+    borderRadius: BorderRadius.lg,
+    justifyContent: "center",
   },
   addCategoryText: {
-    fontSize: Typography.fontSize.base,
     color: Colors.primary,
     fontWeight: "600",
+    fontSize: Typography.fontSize.sm,
   },
   modalOverlay: {
     flex: 1,
@@ -511,31 +584,34 @@ const styles = StyleSheet.create({
   },
   modalSheet: {
     backgroundColor: Colors.white,
-    borderTopLeftRadius: BorderRadius.xl,
-    borderTopRightRadius: BorderRadius.xl,
-    padding: Spacing.xl,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: Spacing.sm,
     paddingBottom: 40,
+    paddingHorizontal: Spacing.base,
   },
   modalHandle: {
-    width: 36,
+    width: 40,
     height: 4,
     borderRadius: 2,
     backgroundColor: Colors.lightGray,
     alignSelf: "center",
-    marginBottom: Spacing.base,
+    marginBottom: Spacing.md,
   },
   modalTitle: {
-    fontSize: Typography.fontSize.lg,
+    fontSize: Typography.fontSize.base,
     fontWeight: "700",
     color: Colors.textPrimary,
+    textAlign: "center",
     marginBottom: Spacing.base,
   },
   textInput: {
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
     fontSize: Typography.fontSize.base,
     color: Colors.textPrimary,
     marginBottom: Spacing.base,
@@ -543,12 +619,12 @@ const styles = StyleSheet.create({
   createBtn: {
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.pill,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
     alignItems: "center",
   },
   createBtnText: {
     color: Colors.white,
-    fontSize: Typography.fontSize.base,
     fontWeight: "700",
+    fontSize: Typography.fontSize.sm,
   },
 });
