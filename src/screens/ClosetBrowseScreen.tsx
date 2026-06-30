@@ -9,27 +9,37 @@ import {
   useWindowDimensions,
   Image,
   Modal,
+  TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import CategoryPill from "../components/CategoryPill";
 import { Colors, Spacing, BorderRadius, Typography } from "../theme";
-import { CATEGORIES } from "../data/mockData";
 import { useCloset } from "../context/ClosetContext";
+
+const CATEGORIES = [
+  'All', 'Coats', 'Jackets', 'Cardigans', 'Sweaters', 'Blouses',
+  'T shirts', 'Dresses', 'Pants', 'Skirts', 'Shorts', 'Shoes', 'Bags', 'Accessories', 'Activewear',
+];
 
 export default function ClosetBrowseScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const initialCategory = route.params?.category || "All";
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
-  const { items, removeItem } = useCloset();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearch, setShowSearch] = useState(false);
+  const { items, removeItem, searchItems, loading } = useCloset();
   const { width } = useWindowDimensions();
 
   // Delete confirmation modal state
   const [itemToDelete, setItemToDelete] = useState<{ id: string; name: string } | null>(null);
 
-  const filteredItems =
-    selectedCategory === "All"
+  // If searching, use searchItems; otherwise filter by category
+  const filteredItems = searchQuery.trim()
+    ? searchItems(searchQuery)
+    : selectedCategory === "All"
       ? items
       : items.filter((item) => item.category === selectedCategory);
 
@@ -54,9 +64,24 @@ export default function ClosetBrowseScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.black} />
         </TouchableOpacity>
-        <Text style={styles.title}>Start Sorting</Text>
-        <TouchableOpacity style={styles.iconBtn}>
-          <Ionicons name="search" size={22} color={Colors.black} />
+        {showSearch ? (
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search color, category, brand..."
+            placeholderTextColor={Colors.mediumGray}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoFocus
+            returnKeyType="search"
+          />
+        ) : (
+          <Text style={styles.title}>Start Sorting</Text>
+        )}
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => { setShowSearch(!showSearch); if (showSearch) setSearchQuery(''); }}
+        >
+          <Ionicons name={showSearch ? 'close' : 'search'} size={22} color={Colors.black} />
         </TouchableOpacity>
       </View>
 
@@ -71,6 +96,13 @@ export default function ClosetBrowseScreen() {
           />
         ))}
       </View>
+
+      {/* Loading indicator */}
+      {loading && (
+        <View style={{ alignItems: 'center', paddingVertical: Spacing.base }}>
+          <ActivityIndicator color={Colors.primary} />
+        </View>
+      )}
 
       {/* Items List — full-width tall image cards */}
       <FlatList
@@ -249,6 +281,18 @@ const styles = StyleSheet.create({
   },
   emptyState: { alignItems: "center", justifyContent: "center", paddingTop: 80, gap: Spacing.md },
   emptyText: { fontSize: Typography.fontSize.base, color: Colors.textSecondary, fontWeight: "500" },
+  searchInput: {
+    flex: 1,
+    height: 36,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.pill,
+    paddingHorizontal: Spacing.md,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textPrimary,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    marginHorizontal: Spacing.sm,
+  },
   // Modal styles
   modalOverlay: {
     flex: 1,

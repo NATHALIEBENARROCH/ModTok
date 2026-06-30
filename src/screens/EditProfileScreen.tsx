@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,16 +11,26 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
-import { CURRENT_USER } from '../data/mockData';
+import { supabase } from '../lib/supabase';
 
 type EditProfileScreenProps = {
   navigation: any;
 };
 
 export default function EditProfileScreen({ navigation }: EditProfileScreenProps) {
-  const [name, setName] = useState(CURRENT_USER.displayName);
-  const [username, setUsername] = useState(CURRENT_USER.username.replace('@', ''));
-  const [bio, setBio] = useState(CURRENT_USER.bio);
+  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [bio, setBio] = useState('My ModTok wardrobe');
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        const emailName = (data.user.email ?? '').split('@')[0];
+        setName(emailName);
+        setUsername(emailName);
+      }
+    });
+  }, []);
   const [website, setWebsite] = useState('');
   const [gender, setGender] = useState('');
 
@@ -43,7 +53,7 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
         {/* Avatar */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarWrapper}>
-            <Image source={{ uri: CURRENT_USER.avatar }} style={styles.avatar} />
+            <Image source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${name || 'user'}` }} style={styles.avatar} />
           </View>
           <TouchableOpacity activeOpacity={0.7}>
             <Text style={styles.changePhotoText}>Change photo</Text>

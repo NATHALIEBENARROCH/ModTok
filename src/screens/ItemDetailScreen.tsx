@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useCloset } from '../context/ClosetContext';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
-import { ClothingItem } from '../data/mockData';
+import { ClothingItem } from '../context/ClosetContext';
 
 const CLOTHING_CATEGORIES = [
   'Coats', 'Jackets', 'Cardigans', 'Sweaters', 'Blouses',

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,17 +11,29 @@ import {
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
-import { CURRENT_USER, MOCK_CLOSET_ITEMS } from '../data/mockData';
-
-// Use closet item images as shared post placeholders
-const SHARED_POSTS = MOCK_CLOSET_ITEMS.map((item) => ({
-  id: item.id,
-  image: item.image,
-  name: item.name,
-}));
+import { supabase } from '../lib/supabase';
+import { useCloset } from '../context/ClosetContext';
 
 export default function ProfileScreen({ navigation }: { navigation: any }) {
   const { width } = useWindowDimensions();
+  const { items, totalItems, totalOutfits } = useCloset();
+  const [userEmail, setUserEmail] = useState('');
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) setUserEmail(data.user.email ?? '');
+    });
+  }, []);
+
+  const username = userEmail ? '@' + userEmail.split('@')[0] : '@user';
+  const displayName = userEmail ? userEmail.split('@')[0] : 'ModTok User';
+
+  // Use real closet item images as shared post placeholders
+  const SHARED_POSTS = items.map((item) => ({
+    id: item.id,
+    image: item.image,
+    name: item.name,
+  }));
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -29,7 +41,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
         {/* Header */}
         <View style={styles.header}>
           <View style={{ width: 36 }} />
-          <Text style={styles.username}>{CURRENT_USER.username}</Text>
+          <Text style={styles.username}>{username}</Text>
           <TouchableOpacity style={styles.settingsBtn} onPress={() => navigation.navigate('Settings')}>
             <Ionicons name="settings-outline" size={22} color={Colors.black} />
           </TouchableOpacity>
@@ -38,33 +50,36 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
         {/* Profile Info */}
         <View style={styles.profileSection}>
           <View style={styles.avatarContainer}>
-            <Image source={{ uri: CURRENT_USER.avatar }} style={styles.avatar} />
+            <Image
+              source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${displayName}` }}
+              style={styles.avatar}
+            />
             <TouchableOpacity style={styles.editAvatarBtn}>
               <Ionicons name="camera" size={14} color={Colors.white} />
             </TouchableOpacity>
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.displayName}>{CURRENT_USER.displayName}</Text>
-            <Text style={styles.bio}>{CURRENT_USER.bio}</Text>
+            <Text style={styles.displayName}>{displayName}</Text>
+            <Text style={styles.bio}>My ModTok wardrobe</Text>
             {/* Stats */}
             <View style={styles.statsRow}>
               <View style={styles.stat}>
-                <Text style={styles.statNumber}>{CURRENT_USER.itemCount}</Text>
+                <Text style={styles.statNumber}>{totalItems}</Text>
                 <Text style={styles.statLabel}>Items</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.stat}>
-                <Text style={styles.statNumber}>{CURRENT_USER.outfitCount}</Text>
+                <Text style={styles.statNumber}>{totalOutfits}</Text>
                 <Text style={styles.statLabel}>Outfits</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.stat}>
-                <Text style={styles.statNumber}>{CURRENT_USER.followers.toLocaleString()}</Text>
+                <Text style={styles.statNumber}>0</Text>
                 <Text style={styles.statLabel}>Followers</Text>
               </View>
               <View style={styles.statDivider} />
               <View style={styles.stat}>
-                <Text style={styles.statNumber}>{CURRENT_USER.following}</Text>
+                <Text style={styles.statNumber}>0</Text>
                 <Text style={styles.statLabel}>Following</Text>
               </View>
             </View>

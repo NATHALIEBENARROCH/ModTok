@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
-import { MOCK_CLOSET_ITEMS, ClothingItem } from '../data/mockData';
+import { ClothingItem, useCloset } from '../context/ClosetContext';
 
 const SELL_TABS = ['For Sale', 'For Rent', 'Sold'];
 
@@ -81,8 +81,9 @@ export default function SellScreen() {
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   const { width } = useWindowDimensions();
 
-  const forSaleItems = MOCK_CLOSET_ITEMS.filter(i => i.forSale);
-  const allItems = MOCK_CLOSET_ITEMS;
+  const { items } = useCloset();
+  const forSaleItems = items.filter(i => i.forSale);
+  const allItems = items;
 
   const baseItems = activeTab === 'For Sale' ? forSaleItems : activeTab === 'Sold' ? [] : allItems;
   const displayItems = selectedCategory === 'All'

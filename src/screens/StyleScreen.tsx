@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors, Spacing, BorderRadius, Typography } from "../theme";
-import { MOCK_CLOSET_ITEMS, ClothingItem } from "../data/mockData";
+import { ClothingItem, useCloset } from "../context/ClosetContext";
 import { useOutfits } from "../context/OutfitContext";
 
 
@@ -43,16 +43,18 @@ interface OutfitSlot {
   currentIndex: number;
 }
 
-function buildSlot(cat: string): OutfitSlot {
+function buildSlot(cat: string, allItems: ClothingItem[]): OutfitSlot {
   return {
     category: cat,
-    items: MOCK_CLOSET_ITEMS.filter((i) => i.category === cat),
+    items: allItems.filter((i) => i.category === cat),
     currentIndex: 0,
   };
 }
 
 export default function StyleScreen() {
   const { width } = useWindowDimensions();
+  const { items: closetItems } = useCloset();
+
   const initialCategories = [
     "Coats",
     "Jackets",
@@ -71,7 +73,7 @@ export default function StyleScreen() {
   ];
 
   const [slots, setSlots] = useState<OutfitSlot[]>(
-    initialCategories.map(buildSlot),
+    initialCategories.map((cat) => buildSlot(cat, closetItems)),
   );
   const [savedOutfit, setSavedOutfit] = useState(false);
   const [savedCategoryName, setSavedCategoryName] = useState("");
@@ -110,7 +112,7 @@ export default function StyleScreen() {
   };
 
   const addSlot = (cat: string) => {
-    setSlots((prev) => [...prev, buildSlot(cat)]);
+    setSlots((prev) => [...prev, buildSlot(cat, closetItems)]);
     setAddPickerVisible(false);
   };
 
@@ -174,7 +176,7 @@ export default function StyleScreen() {
   const selectCategory = (cat: string) => {
     if (editingIndex === null) return;
     setSlots((prev) =>
-      prev.map((slot, i) => (i === editingIndex ? buildSlot(cat) : slot)),
+      prev.map((slot, i) => (i === editingIndex ? buildSlot(cat, closetItems) : slot)),
     );
     setPickerVisible(false);
     setEditingIndex(null);

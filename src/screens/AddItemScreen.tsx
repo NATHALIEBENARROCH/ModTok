@@ -10,6 +10,7 @@ import {
   Alert,
   Image,
   Switch,
+  ActivityIndicator,
   useWindowDimensions,
   Platform,
   FlatList,
@@ -18,6 +19,29 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
+import { supabase } from '../lib/supabase';
+import { useCloset } from '../context/ClosetContext';
+
+// Upload a local image URI to Supabase Storage and return the public URL
+async function uploadImageToSupabase(localUri: string): Promise<string | null> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const response = await fetch(localUri);
+    const blob = await response.blob();
+    const ext = localUri.split('.').pop()?.split('?')[0] ?? 'jpg';
+    const filePath = `${user.id}/${Date.now()}.${ext}`;
+    const { error: uploadError } = await supabase.storage
+      .from('clothing-photos')
+      .upload(filePath, blob, { contentType: blob.type || 'image/jpeg', upsert: false });
+    if (uploadError) { console.error('Upload error:', uploadError); return null; }
+    const { data } = supabase.storage.from('clothing-photos').getPublicUrl(filePath);
+    return data.publicUrl;
+  } catch (err) {
+    console.error('uploadImageToSupabase error:', err);
+    return null;
+  }
+}
 
 const CLOTHING_CATEGORIES = [
   'Coats', 'Jackets', 'Cardigans', 'Sweaters', 'Blouses',
@@ -141,6 +165,17 @@ function StepPickPhoto({
 }
 
 // ─── STEP 2: Details ─────────────────────────────────────────────────────────
+interface ItemFormData {
+  name: string;
+  category: string;
+  brand: string;
+  color: string;
+  season: string;
+  price: string;
+  tags: string[];
+  imageUri: string;
+}
+
 function StepDetails({
   imageUri,
   onBack,
@@ -148,7 +183,7 @@ function StepDetails({
 }: {
   imageUri: string;
   onBack: () => void;
-  onSave: () => void;
+  onSave: (data: ItemFormData) => void;
 }) {
   const { width } = useWindowDimensions();
   const isNarrow = width < 480;
@@ -178,7 +213,16 @@ function StepDetails({
       Alert.alert('Category Required', 'Please select at least one category.');
       return;
     }
-    onSave();
+    onSave({
+      name: caption.trim() || selectedCategories[0],
+      category: selectedCategories[0],
+      brand,
+      color: selectedColor,
+      season: selectedSeason,
+      price,
+      tags: selectedStyleTags,
+      imageUri,
+    });
   };
 
   return (
@@ -339,21 +383,46 @@ function StepDetails({
 // ─── Main Screen (orchestrates steps) ────────────────────────────────────────
 export default function AddItemScreen() {
   const navigation = useNavigation<any>();
+  const { addItem } = useCloset();
   const [step, setStep] = useState<1 | 2>(1);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const handleNext = (uri: string) => {
     setImageUri(uri);
     setStep(2);
   };
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => {
-      setSaved(false);
-      navigation.goBack();
-    }, 1200);
+  const handleSave = async (itemData: ItemFormData) => {
+    setSaving(true);
+    try {
+      // Upload photo to Supabase Storage
+      const imageUrl = await uploadImageToSupabase(itemData.imageUri);
+      // Save item to database via context
+      await addItem({
+        name: itemData.name,
+        category: itemData.category,
+        brand: itemData.brand || undefined,
+        color: itemData.color || undefined,
+        season: itemData.season || undefined,
+        price: itemData.price ? parseFloat(itemData.price) : undefined,
+        image: imageUrl ?? itemData.imageUri,
+        image_url: imageUrl ?? undefined,
+        tags: itemData.tags,
+        isFavorite: false,
+      });
+      setSaved(true);
+      setTimeout(() => {
+        setSaved(false);
+        navigation.goBack();
+      }, 1200);
+    } catch (err) {
+      Alert.alert('Error', 'Could not save item. Please try again.');
+      console.error('handleSave error:', err);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (step === 1) {
@@ -372,6 +441,12 @@ export default function AddItemScreen() {
         onBack={() => setStep(1)}
         onSave={handleSave}
       />
+      {saving && (
+        <View style={[styles.savedToast, { backgroundColor: Colors.primary }]}>
+          <ActivityIndicator size="small" color={Colors.white} />
+          <Text style={styles.savedToastText}>Saving to your closet...</Text>
+        </View>
+      )}
       {saved && (
         <View style={styles.savedToast}>
           <Ionicons name="checkmark-circle" size={18} color={Colors.white} />

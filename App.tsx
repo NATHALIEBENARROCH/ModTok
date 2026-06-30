@@ -3,25 +3,38 @@ import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StyleSheet, View, ActivityIndicator, Platform, useWindowDimensions } from "react-native";
+import { Session } from "@supabase/supabase-js";
 import AppNavigator from "./src/navigation/AppNavigator";
 import SignInScreen from "./src/screens/SignInScreen";
 import { ClosetProvider } from "./src/context/ClosetContext";
 import { OutfitProvider } from "./src/context/OutfitContext";
 import { Colors } from "./src/theme";
 import ModTokLogo from "./src/components/ModTokLogo";
+import { supabase } from "./src/lib/supabase";
 
 const MAX_APP_WIDTH = 430;
 
 function AppContent() {
   const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
   const { width } = useWindowDimensions();
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    // Check for existing session on app start
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
       setIsLoading(false);
-    }, 2000);
-    return () => clearTimeout(timer);
+    });
+
+    // Listen for auth state changes (sign in, sign out, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        setIsLoading(false);
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
 
   if (isLoading) {
@@ -37,10 +50,10 @@ function AppContent() {
     );
   }
 
-  const content = isAuthenticated ? (
+  const content = session ? (
     <AppNavigator />
   ) : (
-    <SignInScreen onSignIn={() => setIsAuthenticated(true)} />
+    <SignInScreen />
   );
 
   if (Platform.OS === 'web' && width > MAX_APP_WIDTH) {

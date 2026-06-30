@@ -13,15 +13,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import ModTokLogo from '../components/ModTokLogo';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
-import { MOCK_CLOSET_ITEMS, CATEGORIES, CURRENT_USER } from '../data/mockData';
+import { useCloset } from '../context/ClosetContext';
 
-
-const CATEGORY_CARDS = [
-  { category: 'Dresses', label: 'Browse your Dresses', items: MOCK_CLOSET_ITEMS.filter(i => i.category === 'Dresses') },
-  { category: 'Coats', label: 'Browse your Jackets', items: MOCK_CLOSET_ITEMS.filter(i => i.category === 'Coats') },
-  { category: 'Sweaters', label: 'Browse your Sweaters', items: MOCK_CLOSET_ITEMS.filter(i => i.category === 'Sweaters') },
-  { category: 'Pants', label: 'Browse your Pants', items: MOCK_CLOSET_ITEMS.filter(i => i.category === 'Pants') },
-  { category: 'Shoes', label: 'Browse your Shoes', items: MOCK_CLOSET_ITEMS.filter(i => i.category === 'Shoes') },
+const CATEGORY_LABELS = [
+  { category: 'Dresses', label: 'Browse your Dresses' },
+  { category: 'Coats', label: 'Browse your Jackets' },
+  { category: 'Sweaters', label: 'Browse your Sweaters' },
+  { category: 'Pants', label: 'Browse your Pants' },
+  { category: 'Shoes', label: 'Browse your Shoes' },
 ];
 
 const today = new Date();
@@ -34,6 +33,12 @@ const dateString = today.toLocaleDateString('en-US', {
 
 export default function HomeScreen() {
   const navigation = useNavigation<any>();
+  const { items, totalItems, totalOutfits } = useCloset();
+
+  const CATEGORY_CARDS = CATEGORY_LABELS.map((c) => ({
+    ...c,
+    items: items.filter((i) => i.category === c.category),
+  })).filter((c) => c.items.length > 0);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -80,20 +85,20 @@ export default function HomeScreen() {
         {/* Quick Stats */}
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{MOCK_CLOSET_ITEMS.length}</Text>
+            <Text style={styles.statNumber}>{totalItems}</Text>
             <Text style={styles.statLabel}>Items</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>3</Text>
+            <Text style={styles.statNumber}>{totalOutfits}</Text>
             <Text style={styles.statLabel}>Outfits</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{MOCK_CLOSET_ITEMS.filter(i => i.forSale).length}</Text>
+            <Text style={styles.statNumber}>{items.filter(i => i.forSale).length}</Text>
             <Text style={styles.statLabel}>For Sale</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={[styles.statNumber, { color: Colors.primary }]}>
-              {CURRENT_USER.followers}
+              0
             </Text>
             <Text style={styles.statLabel}>Followers</Text>
           </View>

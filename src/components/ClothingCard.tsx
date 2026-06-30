@@ -7,7 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
-import { ClothingItem } from '../data/mockData';
+import { ClothingItem } from '../context/ClosetContext';
 import { Colors, BorderRadius, Spacing, Typography } from '../theme';
 
 interface ClothingCardProps {

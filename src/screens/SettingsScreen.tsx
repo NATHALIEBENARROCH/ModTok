@@ -8,9 +8,11 @@ import {
   ScrollView,
   Switch,
   TextInput,
+  Alert,
 } from 'react-native';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
+import { supabase } from '../lib/supabase';
 
 type SettingsScreenProps = {
   navigation: any;
@@ -188,7 +190,16 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         ))}
 
         {/* Log Out */}
-        <TouchableOpacity style={styles.logoutBtn} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          activeOpacity={0.7}
+          onPress={() =>
+            Alert.alert('Log Out', 'Are you sure you want to log out?', [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Log Out', style: 'destructive', onPress: () => supabase.auth.signOut() },
+            ])
+          }
+        >
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
 

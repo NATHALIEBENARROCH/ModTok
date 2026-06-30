@@ -9,22 +9,61 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  useWindowDimensions,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import ModTokLogo from '../components/ModTokLogo';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
+import { supabase } from '../lib/supabase';
 
-interface SignInScreenProps {
-  onSignIn: () => void;
-}
-
-export default function SignInScreen({ onSignIn }: SignInScreenProps) {
+export default function SignInScreen() {
   const [isSignIn, setIsSignIn] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  async function handleAuth() {
+    if (!email || !password) {
+      setErrorMsg('Please enter your email and password.');
+      return;
+    }
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      if (isSignIn) {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) setErrorMsg(error.message);
+      } else {
+        if (!name.trim()) {
+          setErrorMsg('Please enter your name.');
+          setLoading(false);
+          return;
+        }
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { display_name: name } },
+        });
+        if (error) {
+          setErrorMsg(error.message);
+        } else {
+          Alert.alert(
+            'Account created!',
+            'Check your email to confirm your account, then sign in.',
+            [{ text: 'OK', onPress: () => setIsSignIn(true) }]
+          );
+        }
+      }
+    } catch (e: any) {
+      setErrorMsg(e.message || 'Something went wrong.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -96,11 +135,24 @@ export default function SignInScreen({ onSignIn }: SignInScreenProps) {
               </TouchableOpacity>
             )}
 
+            {/* Error Message */}
+            {errorMsg ? (
+              <Text style={styles.errorText}>{errorMsg}</Text>
+            ) : null}
+
             {/* Primary Button */}
-            <TouchableOpacity style={styles.primaryBtn} onPress={onSignIn}>
-              <Text style={styles.primaryBtnText}>
-                {isSignIn ? 'Sign In' : 'Create Account'}
-              </Text>
+            <TouchableOpacity
+              style={[styles.primaryBtn, loading && { opacity: 0.7 }]}
+              onPress={handleAuth}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color={Colors.white} />
+              ) : (
+                <Text style={styles.primaryBtnText}>
+                  {isSignIn ? 'Sign In' : 'Create Account'}
+                </Text>
+              )}
             </TouchableOpacity>
 
             {/* Divider */}
@@ -112,11 +164,11 @@ export default function SignInScreen({ onSignIn }: SignInScreenProps) {
 
             {/* Social Auth */}
             <View style={styles.socialRow}>
-              <TouchableOpacity style={styles.socialBtn} onPress={onSignIn}>
+              <TouchableOpacity style={styles.socialBtn} disabled>
                 <Ionicons name="logo-apple" size={20} color={Colors.black} />
                 <Text style={styles.socialBtnText}>Apple</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.socialBtn} onPress={onSignIn}>
+              <TouchableOpacity style={styles.socialBtn} disabled>
                 <Ionicons name="logo-google" size={20} color={Colors.black} />
                 <Text style={styles.socialBtnText}>Google</Text>
               </TouchableOpacity>
@@ -262,5 +314,11 @@ const styles = StyleSheet.create({
   toggleLink: {
     color: Colors.primary,
     fontWeight: '700',
+  },
+  errorText: {
+    color: '#D32F2F',
+    fontSize: Typography.fontSize.sm,
+    marginBottom: Spacing.sm,
+    textAlign: 'center',
   },
 });
