@@ -22,13 +22,23 @@ export default function SignInScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   async function handleAuth() {
     if (!email || !password) {
       setErrorMsg('Please enter your email and password.');
+      return;
+    }
+    if (!isSignIn && password !== confirmPassword) {
+      setErrorMsg('Passwords do not match.');
+      return;
+    }
+    if (!isSignIn && password.length < 6) {
+      setErrorMsg('Password must be at least 6 characters.');
       return;
     }
     setLoading(true);
@@ -129,6 +139,27 @@ export default function SignInScreen() {
               </TouchableOpacity>
             </View>
 
+            {!isSignIn && (
+              <View style={styles.inputContainer}>
+                <Ionicons name="lock-closed-outline" size={18} color={Colors.mediumGray} style={styles.inputIcon} />
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  placeholder="Confirm Password"
+                  placeholderTextColor={Colors.mediumGray}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry={!showConfirmPassword}
+                />
+                <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeBtn}>
+                  <Ionicons
+                    name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={18}
+                    color={Colors.mediumGray}
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
+
             {isSignIn && (
               <TouchableOpacity style={styles.forgotBtn}>
                 <Text style={styles.forgotText}>Forgot password?</Text>
@@ -176,7 +207,7 @@ export default function SignInScreen() {
 
             {/* Toggle Sign In / Sign Up */}
             <TouchableOpacity
-              onPress={() => setIsSignIn(!isSignIn)}
+              onPress={() => { setIsSignIn(!isSignIn); setErrorMsg(''); setConfirmPassword(''); }}
               style={styles.toggleBtn}
             >
               <Text style={styles.toggleText}>
