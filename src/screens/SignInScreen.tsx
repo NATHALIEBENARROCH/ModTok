@@ -1,3 +1,4 @@
+import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState } from 'react';
 import {
   View,
@@ -5,7 +6,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -53,17 +53,21 @@ export default function SignInScreen() {
           setLoading(false);
           return;
         }
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: { data: { display_name: name } },
         });
         if (error) {
           setErrorMsg(error.message);
+        } else if (data.session) {
+          // Session returned immediately — email confirmation is disabled in Supabase
+          // App.tsx will detect the session and navigate automatically
         } else {
+          // Email confirmation is enabled — ask user to check email
           Alert.alert(
-            'Account created!',
-            'Check your email to confirm your account, then sign in.',
+            'Check your email',
+            'We sent a confirmation link to ' + email + '. Click it to activate your account, then sign in here.',
             [{ text: 'OK', onPress: () => setIsSignIn(true) }]
           );
         }
