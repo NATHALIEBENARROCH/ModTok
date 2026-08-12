@@ -116,11 +116,6 @@ function StepPickPhoto({
     }
   };
 
-  // Auto-open library on mount
-  React.useEffect(() => {
-    openLibrary();
-  }, []);
-
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Header */}
@@ -128,7 +123,7 @@ function StepPickPhoto({
         <TouchableOpacity onPress={onCancel}>
           <Text style={styles.cancelText}>Cancel</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Recents</Text>
+        <Text style={styles.headerTitle}>Add a photo</Text>
         <TouchableOpacity
           onPress={() => selectedUri && onNext(selectedUri)}
           disabled={!selectedUri}
@@ -153,11 +148,11 @@ function StepPickPhoto({
       <View style={styles.sourceRow}>
         <TouchableOpacity style={styles.sourceBtn} onPress={openLibrary}>
           <Ionicons name="images-outline" size={20} color={Colors.textPrimary} />
-          <Text style={styles.sourceBtnText}>Library</Text>
+          <Text style={styles.sourceBtnText}>Choose from Library</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.sourceBtn} onPress={openCamera}>
           <Ionicons name="camera-outline" size={20} color={Colors.textPrimary} />
-          <Text style={styles.sourceBtnText}>Camera</Text>
+          <Text style={styles.sourceBtnText}>Take a Photo</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -191,8 +186,11 @@ function StepDetails({
   const [caption, setCaption] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedStyleTags, setSelectedStyleTags] = useState<string[]>([]);
+  const [customTag, setCustomTag] = useState('');
   const [selectedSeason, setSelectedSeason] = useState('');
+  const [customSeasonOrOccasion, setCustomSeasonOrOccasion] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
+  const [customColor, setCustomColor] = useState('');
   const [brand, setBrand] = useState('');
   const [price, setPrice] = useState('');
 
@@ -217,10 +215,12 @@ function StepDetails({
       name: caption.trim() || selectedCategories[0],
       category: selectedCategories[0],
       brand,
-      color: selectedColor,
-      season: selectedSeason,
+      color: customColor.trim() || selectedColor,
+      season: customSeasonOrOccasion.trim() || selectedSeason,
       price,
-      tags: selectedStyleTags,
+      tags: customTag.trim()
+        ? [...selectedStyleTags, customTag.trim()]
+        : selectedStyleTags,
       imageUri,
     });
   };
@@ -323,14 +323,25 @@ function StepDetails({
             );
           })}
         </View>
+        <TextInput
+          style={styles.customFieldInput}
+          placeholder="Add your own tag (e.g. Vacation, Beach, Work)"
+          placeholderTextColor={Colors.mediumGray}
+          value={customTag}
+          onChangeText={setCustomTag}
+          returnKeyType="done"
+        />
 
-        {/* Season */}
-        <Text style={styles.sectionLabel}>Season</Text>
+        {/* Season / Occasion */}
+        <Text style={styles.sectionLabel}>Season or occasion</Text>
         <View style={styles.seasonRow}>
           {SEASONS.map((season) => (
             <TouchableOpacity
-              key={season}
-              onPress={() => setSelectedSeason(season)}
+                key={season}
+                onPress={() => {
+                  setSelectedSeason(season);
+                  setCustomSeasonOrOccasion('');
+                }}
               style={[styles.seasonPill, selectedSeason === season && styles.seasonPillActive]}
             >
               <Text style={[styles.seasonPillText, selectedSeason === season && styles.seasonPillTextActive]}>
@@ -339,6 +350,14 @@ function StepDetails({
             </TouchableOpacity>
           ))}
         </View>
+        <TextInput
+          style={styles.customFieldInput}
+          placeholder="Or enter an occasion (e.g. Vacation, Wedding)"
+          placeholderTextColor={Colors.mediumGray}
+          value={customSeasonOrOccasion}
+          onChangeText={setCustomSeasonOrOccasion}
+          returnKeyType="done"
+        />
 
         {/* Color */}
         <Text style={styles.sectionLabel}>Color</Text>
@@ -349,7 +368,10 @@ function StepDetails({
               <TouchableOpacity
                 key={color.name}
                 style={styles.colorItem}
-                onPress={() => setSelectedColor(color.name)}
+                onPress={() => {
+                  setSelectedColor(color.name);
+                  setCustomColor('');
+                }}
                 activeOpacity={0.8}
               >
                 <View style={[
@@ -373,6 +395,14 @@ function StepDetails({
             );
           })}
         </View>
+        <TextInput
+          style={styles.customFieldInput}
+          placeholder="Or enter a custom color (e.g. Metallic silver)"
+          placeholderTextColor={Colors.mediumGray}
+          value={customColor}
+          onChangeText={setCustomColor}
+          returnKeyType="done"
+        />
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -400,7 +430,7 @@ export default function AddItemScreen() {
       // Upload photo to Supabase Storage
       const imageUrl = await uploadImageToSupabase(itemData.imageUri);
       // Save item to database via context
-      await addItem({
+      const savedItem = await addItem({
         name: itemData.name,
         category: itemData.category,
         brand: itemData.brand || undefined,
@@ -412,6 +442,9 @@ export default function AddItemScreen() {
         tags: itemData.tags,
         isFavorite: false,
       });
+      if (!savedItem) {
+        throw new Error('The item could not be saved.');
+      }
       setSaved(true);
       setTimeout(() => {
         setSaved(false);
@@ -528,6 +561,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderTopWidth: 1,
     borderTopColor: Colors.cardBorder,
+    // Keep the photo-source buttons clear of the app's floating tab bar.
+    paddingBottom: 92,
   },
   sourceBtn: {
     flex: 1,
@@ -660,6 +695,17 @@ const styles = StyleSheet.create({
   },
   tagPillTextActive: {
     color: Colors.white,
+  },
+  customFieldInput: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.base,
   },
   // Season
   seasonRow: {

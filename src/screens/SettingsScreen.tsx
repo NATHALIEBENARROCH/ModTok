@@ -18,12 +18,35 @@ type SettingsScreenProps = {
   navigation: any;
 };
 
+type ToggleSettingsItem = {
+  icon: string;
+  label: string;
+  toggle: true;
+  value: boolean;
+  onToggle: React.Dispatch<React.SetStateAction<boolean>>;
+  subtitle?: string;
+  onPress?: never;
+};
+
+type LinkSettingsItem = {
+  icon: string;
+  label: string;
+  toggle?: false;
+  value?: string;
+  subtitle?: string;
+  onPress: () => void;
+  onToggle?: never;
+};
+
+type SettingsItem = ToggleSettingsItem | LinkSettingsItem;
+type SettingsSection = { title: string; items: SettingsItem[] };
+
 export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [privateAccount, setPrivateAccount] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const sections = [
+  const sections: SettingsSection[] = [
     {
       title: 'How you use ModTok',
       items: [

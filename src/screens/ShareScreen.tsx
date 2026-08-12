@@ -11,8 +11,7 @@ import {
 } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { Colors, Spacing, BorderRadius, Typography } from "../theme";
-import { MOCK_CLOSET_ITEMS, SocialPost } from "../data/mockData";
-import { useOutfits } from "../context/OutfitContext";
+import { useOutfits, SocialPost } from "../context/OutfitContext";
 
 
 function SocialCard({
@@ -26,32 +25,25 @@ function SocialCard({
     <View style={styles.card}>
       {/* User Header */}
       <View style={styles.cardHeader}>
-        <Image source={{ uri: post.userAvatar }} style={styles.avatar} />
+        <Image
+          source={{ uri: post.avatar_url || 'https://ui-avatars.com/api/?background=E9756A&color=ffffff&name=ModTok' }}
+          style={styles.avatar}
+        />
         <View style={styles.userInfo}>
-          <Text style={styles.username}>{post.username}</Text>
-          <Text style={styles.timestamp}>{post.timestamp}</Text>
+          <Text style={styles.username}>{post.username || '@you'}</Text>
+          <Text style={styles.timestamp}>Just now</Text>
         </View>
         <TouchableOpacity style={styles.followBtn}>
           <Text style={styles.followBtnText}>Follow</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Outfit Items */}
+      {/* A post can be shared before an outfit preview has been created. */}
       <View style={styles.outfitContainer}>
-        {post.outfit.items.slice(0, 3).map((item, index) => (
-          <View key={item.id} style={styles.outfitSlot}>
-            <View style={styles.outfitCategoryLabel}>
-              <Text style={styles.outfitCategoryText}>{item.category}</Text>
-            </View>
-            <View style={styles.outfitItemCard}>
-              <Image
-                source={{ uri: item.image }}
-                style={styles.outfitItemImage}
-                resizeMode="contain"
-              />
-            </View>
-          </View>
-        ))}
+        <View style={styles.outfitItemCard}>
+          <Ionicons name="shirt-outline" size={34} color={Colors.mediumGray} />
+          <Text style={styles.outfitCategoryText}>Outfit post</Text>
+        </View>
       </View>
 
       {/* Caption */}
@@ -64,17 +56,14 @@ function SocialCard({
           style={styles.actionBtn}
         >
           <Ionicons
-            name={post.isLiked ? "heart" : "heart-outline"}
+            name="heart-outline"
             size={22}
-            color={post.isLiked ? Colors.primary : Colors.textSecondary}
+            color={Colors.textSecondary}
           />
           <Text
-            style={[
-              styles.actionCount,
-              post.isLiked && { color: Colors.primary },
-            ]}
+            style={styles.actionCount}
           >
-            {post.likes}
+            {post.likes_count ?? 0}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtn}>
@@ -83,7 +72,7 @@ function SocialCard({
             size={20}
             color={Colors.textSecondary}
           />
-          <Text style={styles.actionCount}>{post.comments}</Text>
+          <Text style={styles.actionCount}>{post.comments_count ?? 0}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtn}>
           <Ionicons

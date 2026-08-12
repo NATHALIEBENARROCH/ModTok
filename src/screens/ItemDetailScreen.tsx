@@ -65,7 +65,7 @@ export default function ItemDetailScreen() {
   const [name, setName] = useState(item?.name || '');
   const [brand, setBrand] = useState(item?.brand || '');
   const [price, setPrice] = useState(item?.price ? String(item.price) : '');
-  const [caption, setCaption] = useState(item?.caption || '');
+  const [caption, setCaption] = useState(item?.notes || '');
   const [selectedCategories, setSelectedCategories] = useState<string[]>(
     item?.category ? [item.category] : []
   );
@@ -452,7 +452,7 @@ export default function ItemDetailScreen() {
 
         {/* Delete Button */}
         <TouchableOpacity style={styles.deleteButton} onPress={handleDelete} activeOpacity={0.85}>
-          <Ionicons name="trash-outline" size={16} color={Colors.error || '#D93025'} />
+          <Ionicons name="trash-outline" size={16} color={'#D93025'} />
           <Text style={styles.deleteButtonText}>Delete Item</Text>
         </TouchableOpacity>
 

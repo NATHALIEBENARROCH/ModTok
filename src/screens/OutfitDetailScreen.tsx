@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
-import { Outfit } from '../context/OutfitContext';
+import { Outfit } from '../context/ClosetContext';
 
 export default function OutfitDetailScreen() {
   const navigation = useNavigation<any>();
