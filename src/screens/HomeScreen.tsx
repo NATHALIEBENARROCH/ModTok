@@ -1,5 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   Image,
   StyleSheet,
-  useWindowDimensions,
+  ImageStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -15,111 +15,92 @@ import ModTokLogo from '../components/ModTokLogo';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
 import { useCloset } from '../context/ClosetContext';
 
-const CATEGORY_LABELS = [
-  { category: 'Dresses', label: 'Browse your Dresses' },
-  { category: 'Coats', label: 'Browse your Jackets' },
-  { category: 'Sweaters', label: 'Browse your Sweaters' },
-  { category: 'Pants', label: 'Browse your Pants' },
-  { category: 'Shoes', label: 'Browse your Shoes' },
-];
+type SortCategory = {
+  category: string;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+};
 
-const today = new Date();
-const dateString = today.toLocaleDateString('en-US', {
-  weekday: undefined,
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-});
+const SORT_CATEGORIES: SortCategory[] = [
+  { category: 'All', label: 'Browse everything', icon: 'apps-outline' },
+  { category: 'Dresses', label: 'Browse your Dresses', icon: 'woman-outline' },
+  { category: 'Jackets', label: 'Browse your Jackets', icon: 'shirt-outline' },
+  { category: 'Sweaters', label: 'Browse your Sweaters', icon: 'layers-outline' },
+  { category: 'Tops', label: 'Browse your Tops', icon: 'shirt-outline' },
+  { category: 'Pants', label: 'Browse your Pants', icon: 'color-palette-outline' },
+  { category: 'Skirts', label: 'Browse your Skirts', icon: 'sparkles-outline' },
+  { category: 'Shoes', label: 'Browse your Shoes', icon: 'footsteps-outline' },
+  { category: 'Bags', label: 'Browse your Bags', icon: 'bag-handle-outline' },
+  { category: 'Accessories', label: 'Browse your Accessories', icon: 'watch-outline' },
+];
 
 export default function HomeScreen() {
   const navigation = useNavigation<any>();
-  const { items, totalItems, totalOutfits } = useCloset();
+  const { items } = useCloset();
 
-  const CATEGORY_CARDS = CATEGORY_LABELS.map((c) => ({
-    ...c,
-    items: items.filter((i) => i.category === c.category),
-  })).filter((c) => c.items.length > 0);
+  function getCategoryItems(category: string) {
+    if (category === 'All') return items;
+    return items.filter((item) => item.category.toLowerCase() === category.toLowerCase());
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <View style={{ width: 36 }} />
+        <View style={styles.headerSpacer} />
         <ModTokLogo size="small" />
-        <TouchableOpacity style={styles.notificationBtn}>
+        <TouchableOpacity style={styles.notificationButton} activeOpacity={0.8}>
           <Ionicons name="notifications-outline" size={22} color={Colors.black} />
         </TouchableOpacity>
       </View>
 
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Sort Header */}
-        <View style={styles.inspirationHeader}>
-          <Text style={styles.inspirationTitle}>Sort</Text>
-          <Text style={styles.inspirationDate}>Today {dateString}</Text>
+        <View style={styles.titleBlock}>
+          <Text style={styles.title}>Sort your wardrobe</Text>
+          <Text style={styles.subtitle}>Choose a category to browse, edit, or delete pieces.</Text>
         </View>
 
-        {/* Category Browse Cards */}
-        {CATEGORY_CARDS.map((card, index) => {
-          const featuredItem = card.items[0];
-          if (!featuredItem) return null;
+        {SORT_CATEGORIES.map((sortCategory) => {
+          const categoryItems = getCategoryItems(sortCategory.category);
+          const featuredItem = categoryItems[0];
+          const itemCount = categoryItems.length;
+
           return (
             <TouchableOpacity
-              key={index}
+              key={sortCategory.category}
               style={styles.categoryCard}
-              onPress={() => navigation.navigate('ClosetBrowse', { category: card.category })}
-              activeOpacity={0.85}
+              onPress={() => navigation.navigate('ClosetBrowse', { category: sortCategory.category })}
+              activeOpacity={0.86}
             >
-              <Image
-                source={{ uri: featuredItem.image }}
-                style={styles.categoryImage}
-                resizeMode="contain"
-              />
-              <Text style={styles.categoryLabel}>{card.label}</Text>
+              <View style={styles.cardArtwork}>
+                {featuredItem?.image ? (
+                  <Image source={{ uri: featuredItem.image }} style={styles.categoryImage} resizeMode="contain" />
+                ) : (
+                  <View style={styles.emptyArtwork}>
+                    <Ionicons name={sortCategory.icon} size={54} color={Colors.primary} />
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.cardFooter}>
+                <View>
+                  <Text style={styles.categoryLabel}>{sortCategory.label}</Text>
+                  <Text style={styles.itemCount}>
+                    {itemCount === 0 ? 'No pieces yet' : `${itemCount} ${itemCount === 1 ? 'piece' : 'pieces'}`}
+                  </Text>
+                </View>
+                <View style={styles.arrowCircle}>
+                  <Ionicons name="chevron-forward" size={20} color={Colors.textPrimary} />
+                </View>
+              </View>
             </TouchableOpacity>
           );
         })}
 
-        {/* Quick Stats */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{totalItems}</Text>
-            <Text style={styles.statLabel}>Items</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{totalOutfits}</Text>
-            <Text style={styles.statLabel}>Outfits</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{items.filter(i => i.forSale).length}</Text>
-            <Text style={styles.statLabel}>For Sale</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={[styles.statNumber, { color: Colors.primary }]}>
-              0
-            </Text>
-            <Text style={styles.statLabel}>Followers</Text>
-          </View>
-        </View>
-
-        {/* AI Suggestion Banner */}
-        <View style={styles.aiBanner}>
-          <View style={styles.aiBannerLeft}>
-            <Ionicons name="sparkles" size={20} color={Colors.primary} />
-            <Text style={styles.aiBannerTitle}>AI Outfit Suggestion</Text>
-          </View>
-          <Text style={styles.aiBannerText}>
-            Based on today's weather (12°C, cloudy), try your Patterned Knit Sweater with Wide-Leg Jeans and Green Sneakers.
-          </Text>
-          <TouchableOpacity style={styles.aiBannerBtn}>
-            <Text style={styles.aiBannerBtnText}>View Outfit</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Bottom padding for tab bar */}
-        <View style={{ height: 100 }} />
+        <View style={{ height: 108 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -138,7 +119,11 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
   },
-  notificationBtn: {
+  headerSpacer: {
+    width: 36,
+    height: 36,
+  },
+  notificationButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
@@ -151,124 +136,89 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  scroll: {
+  scrollView: {
     flex: 1,
   },
-  scrollContent: {
+  content: {
     paddingHorizontal: Spacing.base,
   },
-  inspirationHeader: {
+  titleBlock: {
     alignItems: 'center',
-    marginBottom: Spacing.base,
     marginTop: Spacing.sm,
+    marginBottom: Spacing.lg,
   },
-  inspirationTitle: {
+  title: {
     fontSize: Typography.fontSize.xl,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.textPrimary,
     letterSpacing: -0.5,
   },
-  inspirationDate: {
-    fontSize: Typography.fontSize.sm,
+  subtitle: {
+    maxWidth: 290,
+    textAlign: 'center',
+    marginTop: Spacing.xs,
     color: Colors.textSecondary,
-    marginTop: 2,
+    fontSize: Typography.fontSize.sm,
+    lineHeight: 19,
   },
   categoryCard: {
-    backgroundColor: Colors.cardBackground,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    marginBottom: Spacing.md,
-    padding: Spacing.base,
-    alignItems: 'center',
-    flexDirection: 'row',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  categoryImage: {
-    width: 90,
-    height: 110,
-    borderRadius: BorderRadius.sm,
-  },
-  categoryLabel: {
-    fontSize: Typography.fontSize.md,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    marginLeft: Spacing.base,
-    flex: 1,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.base,
-    marginTop: Spacing.sm,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: Colors.cardBackground,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    alignItems: 'center',
-    marginHorizontal: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  statNumber: {
-    fontSize: Typography.fontSize.lg,
-    fontWeight: '800',
-    color: Colors.textPrimary,
-  },
-  statLabel: {
-    fontSize: Typography.fontSize.xs,
-    color: Colors.textSecondary,
-    marginTop: 2,
-    fontWeight: '500',
-  },
-  aiBanner: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
-    padding: Spacing.base,
-    borderLeftWidth: 3,
-    borderLeftColor: Colors.primary,
+    borderWidth: 1.5,
+    borderColor: Colors.textPrimary,
+    overflow: 'hidden',
+    marginBottom: Spacing.md,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
   },
-  aiBannerLeft: {
+  cardArtwork: {
+    height: 174,
+    backgroundColor: '#FFFDF9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cardBorder,
+  },
+  categoryImage: {
+    width: '92%',
+    height: '92%',
+  } as ImageStyle,
+  emptyArtwork: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#F9E5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardFooter: {
+    minHeight: 76,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Spacing.sm,
+    justifyContent: 'space-between',
   },
-  aiBannerTitle: {
-    fontSize: Typography.fontSize.base,
+  categoryLabel: {
+    fontSize: Typography.fontSize.lg,
     fontWeight: '700',
     color: Colors.textPrimary,
-    marginLeft: Spacing.xs,
   },
-  aiBannerText: {
+  itemCount: {
+    marginTop: 3,
     fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: Spacing.md,
+    fontWeight: '500',
   },
-  aiBannerBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: BorderRadius.pill,
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
-    alignSelf: 'flex-start',
-  },
-  aiBannerBtnText: {
-    color: Colors.white,
-    fontWeight: '600',
-    fontSize: Typography.fontSize.sm,
+  arrowCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F6E2DE',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

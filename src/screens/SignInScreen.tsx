@@ -1,5 +1,6 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
 import React, { useState } from 'react';
+import * as Linking from 'expo-linking';
 import {
   View,
   Text,
@@ -27,6 +28,34 @@ export default function SignInScreen() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  async function handleForgotPassword() {
+    const resetEmail = email.trim().toLowerCase();
+    if (!resetEmail) {
+      setErrorMsg('Enter your email address first, then tap Forgot password.');
+      return;
+    }
+
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: Linking.createURL('reset-password'),
+      });
+      if (error) {
+        setErrorMsg(error.message);
+      } else {
+        Alert.alert(
+          'Check your email',
+          'We sent a password-reset link to ' + resetEmail + '. Open that link on this iPhone to create your new password.'
+        );
+      }
+    } catch (error: any) {
+      setErrorMsg(error?.message || 'We could not send the reset email.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleAuth() {
     if (!email || !password) {
@@ -165,7 +194,7 @@ export default function SignInScreen() {
             )}
 
             {isSignIn && (
-              <TouchableOpacity style={styles.forgotBtn}>
+              <TouchableOpacity style={styles.forgotBtn} onPress={handleForgotPassword} disabled={loading}>
                 <Text style={styles.forgotText}>Forgot password?</Text>
               </TouchableOpacity>
             )}

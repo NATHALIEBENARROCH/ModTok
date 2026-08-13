@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import * as Linking from "expo-linking";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -6,6 +7,7 @@ import { StyleSheet, View, ActivityIndicator, Platform, useWindowDimensions } fr
 import { Session } from "@supabase/supabase-js";
 import AppNavigator from "./src/navigation/AppNavigator";
 import SignInScreen from "./src/screens/SignInScreen";
+import ResetPasswordScreen from "./src/screens/ResetPasswordScreen";
 import { ClosetProvider } from "./src/context/ClosetContext";
 import { OutfitProvider } from "./src/context/OutfitContext";
 import { Colors } from "./src/theme";
@@ -17,24 +19,55 @@ const MAX_APP_WIDTH = 430;
 function AppContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const { width } = useWindowDimensions();
 
   useEffect(() => {
-    // Check for existing session on app start
+    async function openPasswordRecovery(url: string) {
+      const hash = url.split('#')[1] || '';
+      const query = url.split('?')[1]?.split('#')[0] || '';
+      const hashParams = new URLSearchParams(hash);
+      const queryParams = new URLSearchParams(query);
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+      const code = queryParams.get('code');
+
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (!error) setIsPasswordRecovery(true);
+      } else if (accessToken && refreshToken) {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (!error) setIsPasswordRecovery(true);
+      }
+    }
+
+    // Check for an existing session and for a password-reset link that opened the app.
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setIsLoading(false);
     });
+    Linking.getInitialURL().then((url) => {
+      if (url?.includes('reset-password')) openPasswordRecovery(url);
+    });
+    const linkSubscription = Linking.addEventListener('url', ({ url }) => {
+      if (url.includes('reset-password')) openPasswordRecovery(url);
+    });
 
-    // Listen for auth state changes (sign in, sign out, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
         setSession(session);
+        if (event === 'PASSWORD_RECOVERY') setIsPasswordRecovery(true);
         setIsLoading(false);
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      linkSubscription.remove();
+    };
   }, []);
 
   if (isLoading) {
@@ -50,7 +83,9 @@ function AppContent() {
     );
   }
 
-  const content = session ? (
+  const content = isPasswordRecovery ? (
+    <ResetPasswordScreen onComplete={() => setIsPasswordRecovery(false)} />
+  ) : session ? (
     <AppNavigator />
   ) : (
     <SignInScreen />

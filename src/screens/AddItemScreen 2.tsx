@@ -28,16 +28,12 @@ async function uploadImageToSupabase(localUri: string): Promise<string | null> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
     const response = await fetch(localUri);
-    if (!response.ok) throw new Error(`Unable to read the selected photo (${response.status}).`);
-    const arrayBuffer = await response.arrayBuffer();
-    if (arrayBuffer.byteLength === 0) throw new Error('The selected photo was empty.');
-
-    const ext = localUri.match(/\.([a-zA-Z0-9]+)(?:\?.*)?$/)?.[1] ?? 'jpg';
+    const blob = await response.blob();
+    const ext = localUri.split('.').pop()?.split('?')[0] ?? 'jpg';
     const filePath = `${user.id}/${Date.now()}.${ext}`;
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
     const { error: uploadError } = await supabase.storage
       .from('clothing-photos')
-      .upload(filePath, arrayBuffer, { contentType, upsert: false });
+      .upload(filePath, blob, { contentType: blob.type || 'image/jpeg', upsert: false });
     if (uploadError) { console.error('Upload error:', uploadError); return null; }
     const { data } = supabase.storage.from('clothing-photos').getPublicUrl(filePath);
     return data.publicUrl;
@@ -120,6 +116,11 @@ function StepPickPhoto({
     }
   };
 
+  // Auto-open library on mount
+  React.useEffect(() => {
+    openLibrary();
+  }, []);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Header */}
@@ -127,7 +128,7 @@ function StepPickPhoto({
         <TouchableOpacity onPress={onCancel}>
           <Text style={styles.cancelText}>Cancel</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add a photo</Text>
+        <Text style={styles.headerTitle}>Recents</Text>
         <TouchableOpacity
           onPress={() => selectedUri && onNext(selectedUri)}
           disabled={!selectedUri}
@@ -152,11 +153,11 @@ function StepPickPhoto({
       <View style={styles.sourceRow}>
         <TouchableOpacity style={styles.sourceBtn} onPress={openLibrary}>
           <Ionicons name="images-outline" size={20} color={Colors.textPrimary} />
-          <Text style={styles.sourceBtnText}>Choose from Library</Text>
+          <Text style={styles.sourceBtnText}>Library</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.sourceBtn} onPress={openCamera}>
           <Ionicons name="camera-outline" size={20} color={Colors.textPrimary} />
-          <Text style={styles.sourceBtnText}>Take a Photo</Text>
+          <Text style={styles.sourceBtnText}>Camera</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -190,11 +191,8 @@ function StepDetails({
   const [caption, setCaption] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedStyleTags, setSelectedStyleTags] = useState<string[]>([]);
-  const [customTag, setCustomTag] = useState('');
   const [selectedSeason, setSelectedSeason] = useState('');
-  const [customSeasonOrOccasion, setCustomSeasonOrOccasion] = useState('');
   const [selectedColor, setSelectedColor] = useState('');
-  const [customColor, setCustomColor] = useState('');
   const [brand, setBrand] = useState('');
   const [price, setPrice] = useState('');
 
@@ -219,12 +217,10 @@ function StepDetails({
       name: caption.trim() || selectedCategories[0],
       category: selectedCategories[0],
       brand,
-      color: customColor.trim() || selectedColor,
-      season: customSeasonOrOccasion.trim() || selectedSeason,
+      color: selectedColor,
+      season: selectedSeason,
       price,
-      tags: customTag.trim()
-        ? [...selectedStyleTags, customTag.trim()]
-        : selectedStyleTags,
+      tags: selectedStyleTags,
       imageUri,
     });
   };
@@ -327,25 +323,14 @@ function StepDetails({
             );
           })}
         </View>
-        <TextInput
-          style={styles.customFieldInput}
-          placeholder="Add your own tag (e.g. Vacation, Beach, Work)"
-          placeholderTextColor={Colors.mediumGray}
-          value={customTag}
-          onChangeText={setCustomTag}
-          returnKeyType="done"
-        />
 
-        {/* Season / Occasion */}
-        <Text style={styles.sectionLabel}>Season or occasion</Text>
+        {/* Season */}
+        <Text style={styles.sectionLabel}>Season</Text>
         <View style={styles.seasonRow}>
           {SEASONS.map((season) => (
             <TouchableOpacity
-                key={season}
-                onPress={() => {
-                  setSelectedSeason(season);
-                  setCustomSeasonOrOccasion('');
-                }}
+              key={season}
+              onPress={() => setSelectedSeason(season)}
               style={[styles.seasonPill, selectedSeason === season && styles.seasonPillActive]}
             >
               <Text style={[styles.seasonPillText, selectedSeason === season && styles.seasonPillTextActive]}>
@@ -354,14 +339,6 @@ function StepDetails({
             </TouchableOpacity>
           ))}
         </View>
-        <TextInput
-          style={styles.customFieldInput}
-          placeholder="Or enter an occasion (e.g. Vacation, Wedding)"
-          placeholderTextColor={Colors.mediumGray}
-          value={customSeasonOrOccasion}
-          onChangeText={setCustomSeasonOrOccasion}
-          returnKeyType="done"
-        />
 
         {/* Color */}
         <Text style={styles.sectionLabel}>Color</Text>
@@ -372,10 +349,7 @@ function StepDetails({
               <TouchableOpacity
                 key={color.name}
                 style={styles.colorItem}
-                onPress={() => {
-                  setSelectedColor(color.name);
-                  setCustomColor('');
-                }}
+                onPress={() => setSelectedColor(color.name)}
                 activeOpacity={0.8}
               >
                 <View style={[
@@ -399,14 +373,6 @@ function StepDetails({
             );
           })}
         </View>
-        <TextInput
-          style={styles.customFieldInput}
-          placeholder="Or enter a custom color (e.g. Metallic silver)"
-          placeholderTextColor={Colors.mediumGray}
-          value={customColor}
-          onChangeText={setCustomColor}
-          returnKeyType="done"
-        />
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -433,30 +399,23 @@ export default function AddItemScreen() {
     try {
       // Upload photo to Supabase Storage
       const imageUrl = await uploadImageToSupabase(itemData.imageUri);
-      if (!imageUrl) {
-        throw new Error('The photo could not be uploaded. The item was not saved.');
-      }
       // Save item to database via context
-      const savedItem = await addItem({
+      await addItem({
         name: itemData.name,
         category: itemData.category,
         brand: itemData.brand || undefined,
         color: itemData.color || undefined,
         season: itemData.season || undefined,
         price: itemData.price ? parseFloat(itemData.price) : undefined,
-        image: imageUrl,
-        image_url: imageUrl,
+        image: imageUrl ?? itemData.imageUri,
+        image_url: imageUrl ?? undefined,
         tags: itemData.tags,
         isFavorite: false,
       });
-      if (!savedItem) {
-        throw new Error('The item could not be saved.');
-      }
       setSaved(true);
       setTimeout(() => {
         setSaved(false);
-        setImageUri(null);
-        setStep(1);
+        navigation.goBack();
       }, 1200);
     } catch (err) {
       Alert.alert('Error', 'Could not save item. Please try again.');
@@ -569,8 +528,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderTopWidth: 1,
     borderTopColor: Colors.cardBorder,
-    // Keep the photo-source buttons clear of the app's floating tab bar.
-    paddingBottom: 92,
   },
   sourceBtn: {
     flex: 1,
@@ -703,17 +660,6 @@ const styles = StyleSheet.create({
   },
   tagPillTextActive: {
     color: Colors.white,
-  },
-  customFieldInput: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    fontSize: Typography.fontSize.sm,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.base,
   },
   // Season
   seasonRow: {
