@@ -34,8 +34,14 @@ interface OutfitContextType {
   categories: string[];
   loading: boolean;
   addOccasion: (name: string) => Promise<void>;
+  renameOccasion: (id: string, name: string) => Promise<void>;
   deleteOccasion: (id: string) => Promise<void>;
   saveOutfit: (outfit: Omit<Outfit, 'id' | 'created_at'>) => Promise<void>;
+  updateOutfit: (
+    id: string,
+    changes: Partial<Pick<Outfit, 'name' | 'occasion_id' | 'item_ids'>>,
+  ) => Promise<void>;
+  deleteOutfit: (id: string) => Promise<void>;
   addOutfit: (outfit: any) => Promise<void>;
   sharePost: (captionOrPost: any, outfitId?: string | null) => Promise<void>;
   toggleLike: (postId: string) => Promise<void>;
@@ -148,6 +154,19 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (data) setOccasions((previous) => [...previous, data as Occasion]);
   }, []);
 
+  const renameOccasion = useCallback(async (id: string, name: string) => {
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+    const { data, error } = await supabase
+      .from('occasions')
+      .update({ name: trimmedName })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    if (data) setOccasions((previous) => previous.map((occasion) => occasion.id === id ? data as Occasion : occasion));
+  }, []);
+
   const deleteOccasion = useCallback(async (id: string) => {
     const { error } = await supabase.from('occasions').delete().eq('id', id);
     if (error) throw error;
@@ -180,6 +199,49 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ...previous,
       ]);
     }
+  }, []);
+
+  const updateOutfit = useCallback(async (
+    id: string,
+    changes: Partial<Pick<Outfit, 'name' | 'occasion_id' | 'item_ids'>>,
+  ) => {
+    const userId = await getCurrentUserId();
+    if (!userId) throw new Error('You need to sign in before editing a saved outfit.');
+
+    const payload: Record<string, unknown> = {};
+    if (changes.name !== undefined) payload.name = changes.name.trim();
+    if (changes.occasion_id !== undefined) payload.occasion_id = changes.occasion_id;
+    if (changes.item_ids !== undefined) payload.item_ids = changes.item_ids;
+
+    const { data, error } = await supabase
+      .from('outfits')
+      .update(payload)
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    if (data) {
+      const saved = data as Outfit;
+      setOutfits((previous) => previous.map((outfit) =>
+        outfit.id === id
+          ? {
+              id: saved.id,
+              name: saved.name,
+              occasion_id: saved.occasion_id ?? null,
+              item_ids: saved.item_ids ?? [],
+              created_at: saved.created_at,
+            }
+          : outfit,
+      ));
+    }
+  }, []);
+
+  const deleteOutfit = useCallback(async (id: string) => {
+    const { error } = await supabase.from('outfits').delete().eq('id', id);
+    if (error) throw error;
+    setOutfits((previous) => previous.filter((outfit) => outfit.id !== id));
   }, []);
 
   const addOutfit = useCallback(async (outfit: any) => {
@@ -248,8 +310,11 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     categories: occasions.map((occasion) => occasion.name),
     loading,
     addOccasion,
+    renameOccasion,
     deleteOccasion,
     saveOutfit,
+    updateOutfit,
+    deleteOutfit,
     addOutfit,
     sharePost,
     toggleLike,
@@ -262,8 +327,11 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     socialPosts,
     loading,
     addOccasion,
+    renameOccasion,
     deleteOccasion,
     saveOutfit,
+    updateOutfit,
+    deleteOutfit,
     addOutfit,
     sharePost,
     toggleLike,

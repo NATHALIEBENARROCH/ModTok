@@ -1,5 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,9 @@ import {
   ActivityIndicator,
   useWindowDimensions,
   Platform,
+  Modal,
   FlatList,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -21,6 +23,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
 import { supabase } from '../lib/supabase';
 import { useCloset } from '../context/ClosetContext';
+import { useOutfit } from '../context/OutfitContext';
 
 // Upload a local image URI to Supabase Storage and return the public URL
 async function uploadImageToSupabase(localUri: string): Promise<string | null> {
@@ -48,8 +51,8 @@ async function uploadImageToSupabase(localUri: string): Promise<string | null> {
 }
 
 const CLOTHING_CATEGORIES = [
-  'Coats', 'Jackets', 'Cardigans', 'Sweaters', 'Blouses',
-  'T shirts', 'Dresses', 'Pants', 'Skirts', 'Shorts', 'Shoes', 'Bags', 'Accessories', 'Activewear',
+  'Coats', 'Jackets', 'Cardigans', 'Sweaters', 'Tops', 'Blouses',
+  'T shirts', 'Dresses', 'Pants', 'Skirts', 'Shorts', 'Shoes', 'Boots', 'Sneakers', 'Bags', 'Jewelry', 'Accessories', 'Activewear',
 ];
 
 const STYLE_TAGS = [
@@ -73,6 +76,35 @@ const COLORS_LIST = [
   { name: 'Yellow', hex: '#F9A825' },
   { name: 'Purple', hex: '#6A1B9A' },
 ];
+
+const COLOR_PICKER_SWATCHES = [
+  '#EF4444', '#F97316', '#FBBF24', '#84CC16', '#22C55E', '#14B8A6',
+  '#06B6D4', '#3B82F6', '#6366F1', '#8B5CF6', '#A855F7', '#EC4899',
+  '#F43F5E', '#7F1D1D', '#92400E', '#A16207', '#365314', '#166534',
+  '#115E59', '#0E7490', '#1E3A8A', '#312E81', '#581C87', '#831843',
+  '#F8FAFC', '#D1D5DB', '#9CA3AF', '#4B5563', '#1F2937', '#111827',
+];
+
+type SavedChoice = {
+  id: string;
+  choice_type: 'color';
+  label: string;
+  color_hex: string | null;
+};
+
+function colorHexForLabel(label: string): string {
+  const value = label.trim().toLowerCase();
+  if (value.includes('silver')) return '#C0C0C0';
+  if (value.includes('gold')) return '#D4AF37';
+  if (value.includes('burgundy') || value.includes('wine')) return '#800020';
+  if (value.includes('coral')) return '#FF7F50';
+  if (value.includes('orange')) return '#F97316';
+  if (value.includes('lavender')) return '#A78BFA';
+  if (value.includes('cream')) return '#FFF6DC';
+  if (value.includes('teal')) return '#0F766E';
+  if (value.includes('olive')) return '#708238';
+  return '#8E8E93';
+}
 
 // ─── STEP 1: Photo Picker ────────────────────────────────────────────────────
 function StepPickPhoto({
@@ -170,6 +202,7 @@ interface ItemFormData {
   brand: string;
   color: string;
   season: string;
+  occasions: string[];
   price: string;
   tags: string[];
   imageUri: string;
@@ -192,11 +225,17 @@ function StepDetails({
   const [selectedStyleTags, setSelectedStyleTags] = useState<string[]>([]);
   const [customTag, setCustomTag] = useState('');
   const [selectedSeason, setSelectedSeason] = useState('');
-  const [customSeasonOrOccasion, setCustomSeasonOrOccasion] = useState('');
+  const [selectedOccasions, setSelectedOccasions] = useState<string[]>([]);
   const [selectedColor, setSelectedColor] = useState('');
-  const [customColor, setCustomColor] = useState('');
   const [brand, setBrand] = useState('');
   const [price, setPrice] = useState('');
+  const [savedChoices, setSavedChoices] = useState<SavedChoice[]>([]);
+  const [showOccasionInput, setShowOccasionInput] = useState(false);
+  const [newOccasion, setNewOccasion] = useState('');
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [newColorChoice, setNewColorChoice] = useState('');
+  const [pickerColorHex, setPickerColorHex] = useState('#D4AF37');
+  const { occasions, addOccasion } = useOutfit();
 
   const toggleCategory = (cat: string) => {
     setSelectedCategories((prev) =>
@@ -210,6 +249,98 @@ function StepDetails({
     );
   };
 
+  const toggleOccasion = (occasion: string) => {
+    setSelectedOccasions((previous) =>
+      previous.includes(occasion)
+        ? previous.filter((name) => name !== occasion)
+        : [...previous, occasion],
+    );
+  };
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadSavedChoices() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('wardrobe_choices')
+        .select('id, choice_type, label, color_hex')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.warn('Could not load saved wardrobe choices:', error.message);
+        return;
+      }
+      if (active) setSavedChoices((data ?? []) as SavedChoice[]);
+    }
+
+    loadSavedChoices();
+    return () => { active = false; };
+  }, []);
+
+  const addSavedChoice = async (
+    choiceType: 'color',
+    rawLabel: string,
+    providedHex?: string,
+  ): Promise<boolean> => {
+    const label = rawLabel.trim();
+    if (!label) return false;
+
+    const existing = savedChoices.find(
+      (choice) => choice.choice_type === choiceType && choice.label.toLowerCase() === label.toLowerCase(),
+    );
+    if (existing) {
+      setSelectedColor(existing.label);
+      return true;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      Alert.alert('Sign in required', 'Please sign in before saving a reusable choice.');
+      return false;
+    }
+
+    const colorHex = choiceType === 'color'
+      ? (/^#[0-9A-Fa-f]{6}$/.test(providedHex ?? '') ? providedHex! : colorHexForLabel(label))
+      : null;
+
+    const { data, error } = await supabase
+      .from('wardrobe_choices')
+      .upsert(
+        { user_id: user.id, choice_type: choiceType, label, color_hex: colorHex },
+        { onConflict: 'user_id,choice_type,label' },
+      )
+      .select('id, choice_type, label, color_hex')
+      .single();
+
+    if (error || !data) {
+      Alert.alert('Could not save color', 'Please run the attached color repair in Supabase, then try one more time.');
+      return false;
+    }
+
+    const choice = data as SavedChoice;
+    setSavedChoices((previous) => {
+      const withoutDuplicate = previous.filter((saved) => saved.id !== choice.id);
+      return [...withoutDuplicate, choice];
+    });
+    setSelectedColor(choice.label);
+    return true;
+  };
+
+  const savePickedColor = async () => {
+    if (!newColorChoice.trim()) {
+      Alert.alert('Name your color', 'For example: Gold, Metallic Silver, or Cherry Red.');
+      return;
+    }
+    const saved = await addSavedChoice('color', newColorChoice, pickerColorHex);
+    if (!saved) return;
+    setNewColorChoice('');
+    setShowColorPicker(false);
+  };
+
   const handleSave = () => {
     if (selectedCategories.length === 0) {
       Alert.alert('Category Required', 'Please select at least one category.');
@@ -219,8 +350,9 @@ function StepDetails({
       name: caption.trim() || selectedCategories[0],
       category: selectedCategories[0],
       brand,
-      color: customColor.trim() || selectedColor,
-      season: customSeasonOrOccasion.trim() || selectedSeason,
+      color: selectedColor,
+      season: selectedSeason,
+      occasions: selectedOccasions,
       price,
       tags: customTag.trim()
         ? [...selectedStyleTags, customTag.trim()]
@@ -228,6 +360,8 @@ function StepDetails({
       imageUri,
     });
   };
+
+  const savedColors = savedChoices.filter((choice) => choice.choice_type === 'color');
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -336,16 +470,14 @@ function StepDetails({
           returnKeyType="done"
         />
 
-        {/* Season / Occasion */}
-        <Text style={styles.sectionLabel}>Season or occasion</Text>
+        {/* Season */}
+        <Text style={styles.sectionLabel}>Season</Text>
+        <Text style={styles.sectionSub}>Choose the time of year this piece works best.</Text>
         <View style={styles.seasonRow}>
           {SEASONS.map((season) => (
             <TouchableOpacity
-                key={season}
-                onPress={() => {
-                  setSelectedSeason(season);
-                  setCustomSeasonOrOccasion('');
-                }}
+              key={season}
+              onPress={() => setSelectedSeason(season)}
               style={[styles.seasonPill, selectedSeason === season && styles.seasonPillActive]}
             >
               <Text style={[styles.seasonPillText, selectedSeason === season && styles.seasonPillTextActive]}>
@@ -354,14 +486,58 @@ function StepDetails({
             </TouchableOpacity>
           ))}
         </View>
-        <TextInput
-          style={styles.customFieldInput}
-          placeholder="Or enter an occasion (e.g. Vacation, Wedding)"
-          placeholderTextColor={Colors.mediumGray}
-          value={customSeasonOrOccasion}
-          onChangeText={setCustomSeasonOrOccasion}
-          returnKeyType="done"
-        />
+
+        {/* Shared occasions */}
+        <Text style={styles.sectionLabel}>Occasions</Text>
+        <Text style={styles.sectionSub}>Optional — select every occasion this piece can work for.</Text>
+        <View style={styles.seasonRow}>
+          {occasions.map((occasion) => {
+            const isSelected = selectedOccasions.includes(occasion.name);
+            return (
+              <TouchableOpacity
+                key={occasion.id}
+                onPress={() => toggleOccasion(occasion.name)}
+                style={[styles.seasonPill, isSelected && styles.seasonPillActive]}
+              >
+                <Text style={[styles.seasonPillText, isSelected && styles.seasonPillTextActive]}>{occasion.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+          <TouchableOpacity style={styles.addChoicePill} onPress={() => setShowOccasionInput(true)}>
+            <Ionicons name="add" size={15} color={Colors.primary} />
+            <Text style={styles.addChoicePillText}>Add occasion</Text>
+          </TouchableOpacity>
+        </View>
+        {showOccasionInput && (
+          <View style={styles.choiceInputRow}>
+            <TextInput
+              style={[styles.customFieldInput, styles.choiceInput]}
+              placeholder="e.g. Vacation, Wedding, Work"
+              placeholderTextColor={Colors.mediumGray}
+              value={newOccasion}
+              onChangeText={setNewOccasion}
+              autoFocus
+              returnKeyType="done"
+              onSubmitEditing={async () => {
+                if (newOccasion.trim()) await addOccasion(newOccasion.trim());
+                setSelectedOccasions((previous) => newOccasion.trim() ? [...previous, newOccasion.trim()] : previous);
+                setNewOccasion('');
+                setShowOccasionInput(false);
+              }}
+            />
+            <TouchableOpacity
+              style={styles.choiceAddButton}
+              onPress={async () => {
+                if (newOccasion.trim()) await addOccasion(newOccasion.trim());
+                setSelectedOccasions((previous) => newOccasion.trim() ? [...previous, newOccasion.trim()] : previous);
+                setNewOccasion('');
+                setShowOccasionInput(false);
+              }}
+            >
+              <Text style={styles.choiceAddButtonText}>Add</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Color */}
         <Text style={styles.sectionLabel}>Color</Text>
@@ -372,10 +548,7 @@ function StepDetails({
               <TouchableOpacity
                 key={color.name}
                 style={styles.colorItem}
-                onPress={() => {
-                  setSelectedColor(color.name);
-                  setCustomColor('');
-                }}
+                onPress={() => setSelectedColor(color.name)}
                 activeOpacity={0.8}
               >
                 <View style={[
@@ -398,15 +571,98 @@ function StepDetails({
               </TouchableOpacity>
             );
           })}
+          {savedColors.map((choice) => {
+            const isSelected = selectedColor === choice.label;
+            const hex = choice.color_hex || colorHexForLabel(choice.label);
+            return (
+              <TouchableOpacity
+                key={choice.id}
+                style={styles.colorItem}
+                onPress={() => setSelectedColor(choice.label)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.colorSwatch, { backgroundColor: hex }, isSelected && styles.colorSwatchSelected]}>
+                  {isSelected && <Ionicons name="checkmark" size={14} color={Colors.white} />}
+                </View>
+                <Text style={[styles.colorLabel, isSelected && styles.colorLabelActive]} numberOfLines={1}>
+                  {choice.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+          <TouchableOpacity
+            style={styles.colorItem}
+            onPress={() => {
+              setNewColorChoice('');
+              setPickerColorHex('#D4AF37');
+              setShowColorPicker(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.colorSwatch, styles.addColorSwatch]}>
+              <Ionicons name="add" size={20} color={Colors.primary} />
+            </View>
+            <Text style={styles.colorLabel}>Add color</Text>
+          </TouchableOpacity>
         </View>
-        <TextInput
-          style={styles.customFieldInput}
-          placeholder="Or enter a custom color (e.g. Metallic silver)"
-          placeholderTextColor={Colors.mediumGray}
-          value={customColor}
-          onChangeText={setCustomColor}
-          returnKeyType="done"
-        />
+
+        <Modal
+          visible={showColorPicker}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowColorPicker(false)}
+        >
+          <View style={styles.colorPickerOverlay}>
+            <KeyboardAvoidingView
+              style={styles.colorPickerKeyboard}
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
+              <View style={styles.colorPickerSheet}>
+                <View style={styles.colorPickerHeader}>
+                  <Text style={styles.colorPickerTitle}>Pick a color</Text>
+                  <TouchableOpacity onPress={() => setShowColorPicker(false)}>
+                    <Ionicons name="close" size={24} color={Colors.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.colorPickerHint}>1. Tap a shade first</Text>
+                <View style={styles.pickerSwatchGrid}>
+                  {COLOR_PICKER_SWATCHES.map((hex) => (
+                    <TouchableOpacity
+                      key={hex}
+                      onPress={() => setPickerColorHex(hex)}
+                      style={[
+                        styles.pickerSwatch,
+                        { backgroundColor: hex },
+                        pickerColorHex === hex && styles.pickerSwatchSelected,
+                      ]}
+                      activeOpacity={0.8}
+                    >
+                      {pickerColorHex === hex && <Ionicons name="checkmark" size={16} color={Colors.white} />}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <View style={styles.colorPreviewRow}>
+                  <View style={[styles.colorPreview, { backgroundColor: pickerColorHex }]} />
+                  <TextInput
+                    style={styles.colorNameInput}
+                    placeholder="2. Name it (e.g. Camel)"
+                    placeholderTextColor={Colors.mediumGray}
+                    value={newColorChoice}
+                    onChangeText={setNewColorChoice}
+                    returnKeyType="done"
+                    onSubmitEditing={savePickedColor}
+                  />
+                </View>
+
+                <TouchableOpacity style={styles.savePickedColorButton} onPress={savePickedColor}>
+                  <Text style={styles.savePickedColorButtonText}>Save color</Text>
+                </TouchableOpacity>
+              </View>
+            </KeyboardAvoidingView>
+          </View>
+        </Modal>
 
         <View style={{ height: 100 }} />
       </ScrollView>
@@ -443,6 +699,7 @@ export default function AddItemScreen() {
         brand: itemData.brand || undefined,
         color: itemData.color || undefined,
         season: itemData.season || undefined,
+        occasions: itemData.occasions,
         price: itemData.price ? parseFloat(itemData.price) : undefined,
         image: imageUrl,
         image_url: imageUrl,
@@ -715,6 +972,47 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     marginBottom: Spacing.base,
   },
+  addChoicePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 7,
+    borderRadius: BorderRadius.pill,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: Colors.primary,
+    backgroundColor: Colors.white,
+  },
+  addChoicePillText: {
+    color: Colors.primary,
+    fontSize: Typography.fontSize.xs,
+    fontWeight: '700',
+  },
+  choiceInputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    marginBottom: Spacing.base,
+  },
+  choiceInput: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  choiceAddButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  choiceAddButtonText: {
+    color: Colors.white,
+    fontSize: Typography.fontSize.sm,
+    fontWeight: '700',
+  },
   // Season
   seasonRow: {
     flexDirection: 'row',
@@ -766,6 +1064,99 @@ const styles = StyleSheet.create({
   colorSwatchSelected: {
     borderWidth: 3,
     borderColor: Colors.primary,
+  },
+  addColorSwatch: {
+    backgroundColor: Colors.white,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: Colors.primary,
+  },
+  colorPickerOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.38)',
+  },
+  colorPickerKeyboard: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  colorPickerSheet: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    paddingBottom: 42,
+  },
+  colorPickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.base,
+  },
+  colorPickerTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+  },
+  colorPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginBottom: Spacing.base,
+  },
+  colorPreview: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: Colors.cardBorder,
+  },
+  colorNameInput: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    color: Colors.textPrimary,
+    fontSize: Typography.fontSize.sm,
+  },
+  colorPickerHint: {
+    color: Colors.textSecondary,
+    fontSize: Typography.fontSize.xs,
+    marginBottom: Spacing.sm,
+    fontWeight: '600',
+  },
+  pickerSwatchGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: Spacing.lg,
+  },
+  pickerSwatch: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+  },
+  pickerSwatchSelected: {
+    borderWidth: 3,
+    borderColor: Colors.black,
+  },
+  savePickedColorButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.pill,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+  },
+  savePickedColorButtonText: {
+    color: Colors.white,
+    fontSize: Typography.fontSize.base,
+    fontWeight: '800',
   },
   colorLabel: {
     fontSize: 10,

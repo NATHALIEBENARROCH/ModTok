@@ -18,6 +18,7 @@ export interface ClothingItem {
   color?: string;
   size?: string;
   season?: string;
+  occasions?: string[];
   price?: number;
   image?: string;       // local URI (before upload) or remote URL
   image_url?: string;   // persisted Supabase Storage URL
@@ -46,6 +47,7 @@ interface ClosetContextType {
   outfits: Outfit[];
   loading: boolean;
   addItem: (item: Omit<ClothingItem, 'id' | 'addedDate'>) => Promise<ClothingItem | null>;
+  updateItem: (id: string, changes: Partial<Omit<ClothingItem, 'id' | 'addedDate'>>) => Promise<ClothingItem | null>;
   removeItem: (id: string) => Promise<void>;
   toggleFavorite: (id: string) => Promise<void>;
   addOutfit: (outfit: Omit<Outfit, 'id' | 'createdDate' | 'likes'>) => Promise<void>;
@@ -73,6 +75,7 @@ function rowToItem(row: any): ClothingItem {
     color: row.color,
     size: row.size,
     season: row.season,
+    occasions: row.occasions ?? [],
     price: row.price,
     image: row.image_url,
     image_url: row.image_url,
@@ -180,6 +183,7 @@ export function ClosetProvider({ children }: { children: ReactNode }) {
           color: item.color,
           size: item.size,
           season: item.season,
+          occasions: item.occasions ?? [],
           price: item.price,
           image_url: item.image_url ?? item.image,
           tags: item.tags,
@@ -201,6 +205,41 @@ export function ClosetProvider({ children }: { children: ReactNode }) {
       return newItem;
     },
     []
+  );
+
+  const updateItem = useCallback(
+    async (
+      id: string,
+      changes: Partial<Omit<ClothingItem, 'id' | 'addedDate'>>,
+    ): Promise<ClothingItem | null> => {
+      const columnMap: Record<string, string> = {
+        isFavorite: 'is_favorite',
+        forSale: 'for_sale',
+        salePrice: 'sale_price',
+        image: 'image_url',
+      };
+      const updatePayload: Record<string, unknown> = {};
+      Object.entries(changes).forEach(([key, value]) => {
+        if (value !== undefined) updatePayload[columnMap[key] ?? key] = value;
+      });
+
+      const { data, error } = await supabase
+        .from('closet_items')
+        .update(updatePayload)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('updateItem error:', error);
+        return null;
+      }
+
+      const updatedItem = rowToItem(data);
+      setItems((previous) => previous.map((existing) => existing.id === id ? updatedItem : existing));
+      return updatedItem;
+    },
+    [],
   );
 
   const removeItem = useCallback(async (id: string) => {
@@ -298,6 +337,7 @@ export function ClosetProvider({ children }: { children: ReactNode }) {
         outfits,
         loading,
         addItem,
+        updateItem,
         removeItem,
         toggleFavorite,
         addOutfit,

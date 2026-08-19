@@ -9,38 +9,64 @@ import {
   Modal,
   TextInput,
   Alert,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 import { Colors, Spacing, BorderRadius, Typography } from "../theme";
 import { useOutfit, Outfit, Occasion } from "../context/OutfitContext";
+import { useCloset } from "../context/ClosetContext";
 
 // ─── Outfit Card ─────────────────────────────────────────────────────────────
 function OutfitCard({
   outfit,
   onDelete,
+  onOpen,
+  itemImages,
 }: {
   outfit: Outfit;
   onDelete: () => void;
+  onOpen: () => void;
+  itemImages: Record<string, string | undefined>;
 }) {
+  const photos = outfit.item_ids
+    .map((itemId) => itemImages[itemId])
+    .filter((photo): photo is string => Boolean(photo))
+    .slice(0, 4);
+
   return (
     <View style={styles.outfitCard}>
-      <View style={styles.outfitPreview}>
-        <Ionicons name="image-outline" size={48} color={Colors.lightGray} />
-        {/* Delete button */}
-        <TouchableOpacity
-          style={styles.deleteOutfitBtn}
-          onPress={onDelete}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="trash" size={14} color={Colors.white} />
-        </TouchableOpacity>
-      </View>
-      <View style={styles.outfitInfo}>
-        <Text style={styles.outfitName} numberOfLines={1}>
-          {outfit.name}
-        </Text>
-        <Text style={styles.outfitMeta}>{outfit.item_ids.length} items</Text>
-      </View>
+      <TouchableOpacity onPress={onOpen} activeOpacity={0.82}>
+        <View style={styles.outfitPreview}>
+          {photos.length > 0 ? (
+            <View style={styles.outfitCollage}>
+              {photos.map((photo, index) => (
+                <Image
+                  key={`${outfit.id}-${index}`}
+                  source={{ uri: photo }}
+                  style={[styles.outfitCollageImage, photos.length === 1 && styles.outfitCollageImageSingle]}
+                  resizeMode="cover"
+                />
+              ))}
+            </View>
+          ) : (
+            <Ionicons name="image-outline" size={48} color={Colors.lightGray} />
+          )}
+        </View>
+        <View style={styles.outfitInfo}>
+          <Text style={styles.outfitName} numberOfLines={1}>
+            {outfit.name}
+          </Text>
+          <Text style={styles.outfitMeta}>Tap to view or edit · {outfit.item_ids.length} items</Text>
+        </View>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.deleteOutfitBtn}
+        onPress={onDelete}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Ionicons name="trash" size={14} color={Colors.white} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -50,10 +76,14 @@ function OccasionRow({
   occasion,
   outfits,
   onDeleteOutfit,
+  onOpenOutfit,
+  itemImages,
 }: {
   occasion: Occasion;
   outfits: Outfit[];
   onDeleteOutfit: (id: string) => void;
+  onOpenOutfit: (outfit: Outfit) => void;
+  itemImages: Record<string, string | undefined>;
 }) {
   const [index, setIndex] = useState(0);
 
@@ -92,6 +122,8 @@ function OccasionRow({
         <OutfitCard
           outfit={outfits[safeIndex]}
           onDelete={() => onDeleteOutfit(outfits[safeIndex].id)}
+          onOpen={() => onOpenOutfit(outfits[safeIndex])}
+          itemImages={itemImages}
         />
 
         <TouchableOpacity
@@ -123,7 +155,13 @@ function OccasionRow({
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 export default function SaveScreen() {
-  const { occasions, outfits, addOccasion, deleteOccasion } = useOutfit();
+  const navigation = useNavigation<any>();
+  const { occasions, outfits, addOccasion, deleteOccasion, deleteOutfit } = useOutfit();
+  const { items } = useCloset();
+  const itemImages = items.reduce<Record<string, string | undefined>>((images, item) => {
+    images[item.id] = item.image_url ?? item.image;
+    return images;
+  }, {});
   const [activeTab, setActiveTab] = useState("Outfits");
 
   // Add occasion modal
@@ -163,9 +201,26 @@ export default function SaveScreen() {
     ]);
   };
 
+  const handleDeleteOutfit = (outfitId: string) => {
+    Alert.alert('Delete Outfit', 'Remove this saved outfit?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteOutfit(outfitId);
+          } catch {
+            Alert.alert('Error', 'Failed to delete outfit. Please try again.');
+          }
+        },
+      },
+    ]);
+  };
+
   // Get outfits for each occasion
   const getOutfitsForOccasion = (occasionId: string): Outfit[] => {
-    return outfits.filter((o) => o.occasion_id === occasionId);
+    return outfits.filter((outfit) => outfit.occasion_id === occasionId);
   };
 
   return (
@@ -212,38 +267,34 @@ export default function SaveScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.outfitsContent}
         >
-          {occasions.length === 0 ? (
+          {outfits.length === 0 && occasions.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons
-                name="folder-outline"
-                size={48}
-                color={Colors.lightGray}
-              />
-              <Text style={styles.emptyStateText}>No occasions yet</Text>
+              <Ionicons name="bookmark-outline" size={48} color={Colors.lightGray} />
+              <Text style={styles.emptyStateText}>No saved outfits yet</Text>
               <Text style={styles.emptyStateSubtext}>
-                Create an occasion to organize your outfits
+                Build a look in Style and tap Save Outfit to see it here.
               </Text>
             </View>
           ) : (
-            occasions.map((occasion) => (
+            <>
               <OccasionRow
-                key={occasion.id}
-                occasion={occasion}
-                outfits={getOutfitsForOccasion(occasion.id)}
-                onDeleteOutfit={(outfitId) => {
-                  Alert.alert("Delete Outfit", "Remove this outfit?", [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Delete",
-                      style: "destructive",
-                      onPress: () => {
-                        console.log("Delete outfit:", outfitId);
-                      },
-                    },
-                  ]);
-                }}
+                occasion={{ id: 'all-saved-outfits', name: 'All saved outfits', created_at: '' }}
+                outfits={outfits}
+                onDeleteOutfit={handleDeleteOutfit}
+                onOpenOutfit={(outfit) => navigation.navigate('OutfitDetail', { outfitId: outfit.id })}
+                itemImages={itemImages}
               />
-            ))
+              {occasions.map((occasion) => (
+                <OccasionRow
+                  key={occasion.id}
+                  occasion={occasion}
+                  outfits={getOutfitsForOccasion(occasion.id)}
+                  onDeleteOutfit={handleDeleteOutfit}
+                  onOpenOutfit={(outfit) => navigation.navigate('OutfitDetail', { outfitId: outfit.id })}
+                  itemImages={itemImages}
+                />
+              ))}
+            </>
           )}
           <View style={{ height: 100 }} />
         </ScrollView>
@@ -460,6 +511,22 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: BorderRadius.lg,
     borderTopRightRadius: BorderRadius.lg,
     overflow: "hidden",
+  },
+  outfitCollage: {
+    width: "100%",
+    height: "100%",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    backgroundColor: Colors.white,
+  },
+  outfitCollageImage: {
+    width: "50%",
+    height: "50%",
+    backgroundColor: Colors.background,
+  },
+  outfitCollageImageSingle: {
+    width: "100%",
+    height: "100%",
   },
   outfitInfo: {
     padding: Spacing.sm,
