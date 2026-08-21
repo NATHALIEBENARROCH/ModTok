@@ -20,11 +20,11 @@ const TAB_ICONS: Record<
     label: string;
   }
 > = {
-  Home: { icon: "home", lib: "Ionicons", label: "Home" },
+  Home: { icon: "home", lib: "Ionicons", label: "Sort" },
   Style: { icon: "color-wand", lib: "Ionicons", label: "Style" },
   Share: { icon: "share-social", lib: "Ionicons", label: "Share" },
   Add: { icon: "plus", lib: "Feather", label: "Add" },
-  Save: { icon: "bookmark", lib: "Ionicons", label: "Save" },
+  Save: { icon: "bookmark", lib: "Ionicons", label: "Saved" },
   Sell: { icon: "pricetag", lib: "Ionicons", label: "Sell" },
   Profile: { icon: "person-circle", lib: "Ionicons", label: "Profile" },
 };
@@ -106,12 +106,17 @@ export default function CustomTabBar({
                   <Feather name="plus" size={22} color={Colors.white} />
                 </View>
               ) : (
-                <TabIcon
-                  name={tabConfig.icon}
-                  lib={tabConfig.lib}
-                  color={iconColor}
-                  size={iconSize}
-                />
+                <View style={styles.tabContent}>
+                  <TabIcon
+                    name={tabConfig.icon}
+                    lib={tabConfig.lib}
+                    color={iconColor}
+                    size={iconSize}
+                  />
+                  <Text style={[styles.tabLabel, { color: iconColor }]} numberOfLines={1}>
+                    {tabConfig.label}
+                  </Text>
+                </View>
               )}
             </TouchableOpacity>
           );
@@ -133,8 +138,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: Colors.black,
     borderRadius: BorderRadius.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 7,
     alignItems: "center",
     justifyContent: "space-around",
     width: "100%",
@@ -148,12 +153,26 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 4,
+    minHeight: 42,
+  },
+  tabContent: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+  },
+  tabLabel: {
+    fontSize: 8,
+    lineHeight: 10,
+    fontWeight: "700",
+    letterSpacing: -0.15,
+    maxWidth: 46,
+    textAlign: "center",
   },
   addTab: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    paddingBottom: 8,
   },
   addButton: {
     width: 36,

@@ -32,7 +32,7 @@ function OutfitCard({
   const photos = outfit.item_ids
     .map((itemId) => itemImages[itemId])
     .filter((photo): photo is string => Boolean(photo))
-    .slice(0, 4);
+    .slice(0, 3);
 
   return (
     <View style={styles.outfitCard}>
@@ -45,7 +45,7 @@ function OutfitCard({
                   key={`${outfit.id}-${index}`}
                   source={{ uri: photo }}
                   style={[styles.outfitCollageImage, photos.length === 1 && styles.outfitCollageImageSingle]}
-                  resizeMode="cover"
+                  resizeMode="contain"
                 />
               ))}
             </View>
@@ -228,7 +228,7 @@ export default function SaveScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={{ width: 36 }} />
-        <Text style={styles.title}>Save</Text>
+        <Text style={styles.title}>Saved</Text>
         {activeTab === "Occasions" ? (
           <TouchableOpacity
             style={styles.addBtn}
@@ -503,8 +503,8 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   outfitPreview: {
-    height: 130,
-    backgroundColor: Colors.background,
+    height: 182,
+    backgroundColor: '#FFFDF9',
     position: "relative",
     alignItems: "center",
     justifyContent: "center",
@@ -516,17 +516,18 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     flexDirection: "row",
-    flexWrap: "wrap",
-    backgroundColor: Colors.white,
+    backgroundColor: '#FFFDF9',
+    paddingHorizontal: Spacing.xs,
+    gap: Spacing.xs,
   },
   outfitCollageImage: {
-    width: "50%",
-    height: "50%",
-    backgroundColor: Colors.background,
+    flex: 1,
+    height: "100%",
+    backgroundColor: '#FFFDF9',
   },
   outfitCollageImageSingle: {
-    width: "100%",
-    height: "100%",
+    flex: 1,
+    marginHorizontal: '18%',
   },
   outfitInfo: {
     padding: Spacing.sm,

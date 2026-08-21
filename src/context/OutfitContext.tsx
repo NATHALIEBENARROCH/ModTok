@@ -27,10 +27,24 @@ export interface SocialPost {
   avatar_url?: string;
 }
 
+export interface ShareStory {
+  id: string;
+  user_id: string;
+  outfit_id: string | null;
+  caption: string;
+  image_urls: string[];
+  tagged_item_id: string | null;
+  tagged_item_name: string | null;
+  tagged_item_price: number | null;
+  created_at: string;
+  expires_at: string;
+}
+
 interface OutfitContextType {
   occasions: Occasion[];
   outfits: Outfit[];
   socialPosts: SocialPost[];
+  shareStories: ShareStory[];
   categories: string[];
   loading: boolean;
   addOccasion: (name: string) => Promise<void>;
@@ -48,6 +62,8 @@ interface OutfitContextType {
   loadOccasions: () => Promise<void>;
   loadOutfits: () => Promise<void>;
   loadSocialPosts: () => Promise<void>;
+  loadShareStories: () => Promise<void>;
+  createShareStory: (story: Omit<ShareStory, 'id' | 'user_id' | 'created_at' | 'expires_at'>) => Promise<ShareStory | null>;
 }
 
 const OutfitContext = createContext<OutfitContextType | undefined>(undefined);
@@ -61,6 +77,7 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [occasions, setOccasions] = useState<Occasion[]>([]);
   const [outfits, setOutfits] = useState<Outfit[]>([]);
   const [socialPosts, setSocialPosts] = useState<SocialPost[]>([]);
+  const [shareStories, setShareStories] = useState<ShareStory[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadOccasions = useCallback(async () => {
@@ -128,11 +145,25 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setSocialPosts((data ?? []) as SocialPost[]);
   }, []);
 
+  const loadShareStories = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('share_stories')
+      .select('*')
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.warn('Could not load share stories:', error.message);
+      setShareStories([]);
+      return;
+    }
+    setShareStories((data ?? []) as ShareStory[]);
+  }, []);
+
   const reloadAll = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadOccasions(), loadOutfits(), loadSocialPosts()]);
+    await Promise.all([loadOccasions(), loadOutfits(), loadSocialPosts(), loadShareStories()]);
     setLoading(false);
-  }, [loadOccasions, loadOutfits, loadSocialPosts]);
+  }, [loadOccasions, loadOutfits, loadSocialPosts, loadShareStories]);
 
   useEffect(() => {
     void reloadAll();
@@ -293,6 +324,31 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (data) setSocialPosts((previous) => [data as SocialPost, ...previous]);
   }, []);
 
+  const createShareStory = useCallback(async (
+    story: Omit<ShareStory, 'id' | 'user_id' | 'created_at' | 'expires_at'>,
+  ): Promise<ShareStory | null> => {
+    const userId = await getCurrentUserId();
+    if (!userId) return null;
+    const { data, error } = await supabase
+      .from('share_stories')
+      .insert({
+        user_id: userId,
+        outfit_id: story.outfit_id,
+        caption: story.caption,
+        image_urls: story.image_urls,
+        tagged_item_id: story.tagged_item_id,
+        tagged_item_name: story.tagged_item_name,
+        tagged_item_price: story.tagged_item_price,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    if (!data) return null;
+    const created = data as ShareStory;
+    setShareStories((previous) => [created, ...previous]);
+    return created;
+  }, []);
+
   const toggleLike = useCallback(async (postId: string) => {
     setSocialPosts((previous) =>
       previous.map((post) =>
@@ -307,6 +363,7 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     occasions,
     outfits,
     socialPosts,
+    shareStories,
     categories: occasions.map((occasion) => occasion.name),
     loading,
     addOccasion,
@@ -321,10 +378,13 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     loadOccasions,
     loadOutfits,
     loadSocialPosts,
+    loadShareStories,
+    createShareStory,
   }), [
     occasions,
     outfits,
     socialPosts,
+    shareStories,
     loading,
     addOccasion,
     renameOccasion,
@@ -338,6 +398,8 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     loadOccasions,
     loadOutfits,
     loadSocialPosts,
+    loadShareStories,
+    createShareStory,
   ]);
 
   return <OutfitContext.Provider value={value}>{children}</OutfitContext.Provider>;

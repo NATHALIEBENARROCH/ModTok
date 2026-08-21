@@ -26,6 +26,7 @@ export interface ClothingItem {
   isFavorite: boolean;
   forSale?: boolean;
   salePrice?: number;
+  listingType?: 'sale' | 'rent';
   notes?: string;
   addedDate: string;
 }
@@ -83,6 +84,7 @@ function rowToItem(row: any): ClothingItem {
     isFavorite: row.is_favorite ?? false,
     forSale: row.for_sale ?? false,
     salePrice: row.sale_price,
+    listingType: row.listing_type === 'rent' ? 'rent' : row.listing_type === 'sale' ? 'sale' : undefined,
     notes: row.notes,
     addedDate: row.added_date ?? row.created_at?.split('T')[0] ?? '',
   };
@@ -190,6 +192,7 @@ export function ClosetProvider({ children }: { children: ReactNode }) {
           is_favorite: item.isFavorite ?? false,
           for_sale: item.forSale ?? false,
           sale_price: item.salePrice,
+          listing_type: item.listingType,
           notes: item.notes,
         })
         .select()
@@ -216,6 +219,7 @@ export function ClosetProvider({ children }: { children: ReactNode }) {
         isFavorite: 'is_favorite',
         forSale: 'for_sale',
         salePrice: 'sale_price',
+        listingType: 'listing_type',
         image: 'image_url',
       };
       const updatePayload: Record<string, unknown> = {};

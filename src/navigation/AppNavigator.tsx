@@ -12,6 +12,7 @@ import ShareScreen from "../screens/ShareScreen";
 import AddItemScreen from "../screens/AddItemScreen";
 import SaveScreen from "../screens/SaveScreen";
 import SellScreen from "../screens/SellScreen";
+import SellItemPickerScreen from "../screens/SellItemPickerScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import ClosetBrowseScreen from "../screens/ClosetBrowseScreen";
 import ItemDetailScreen from "../screens/ItemDetailScreen";
@@ -54,6 +55,7 @@ export default function AppNavigator() {
         <Stack.Screen name="ClosetBrowse" component={ClosetBrowseScreen} />
         <Stack.Screen name="ItemDetail" component={ItemDetailScreen} />
         <Stack.Screen name="OutfitDetail" component={OutfitDetailScreen} />
+        <Stack.Screen name="SellItemPicker" component={SellItemPickerScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       </Stack.Navigator>
