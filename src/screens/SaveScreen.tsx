@@ -38,7 +38,9 @@ function OutfitCard({
     <View style={styles.outfitCard}>
       <TouchableOpacity onPress={onOpen} activeOpacity={0.82}>
         <View style={styles.outfitPreview}>
-          {photos.length > 0 ? (
+          {outfit.look_image_url ? (
+            <Image source={{ uri: outfit.look_image_url }} style={styles.outfitLookPhoto} resizeMode="contain" />
+          ) : photos.length > 0 ? (
             <View style={styles.outfitCollage}>
               {photos.map((photo, index) => (
                 <Image
@@ -503,7 +505,7 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   outfitPreview: {
-    height: 182,
+    height: 270,
     backgroundColor: '#FFFDF9',
     position: "relative",
     alignItems: "center",
@@ -512,6 +514,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: BorderRadius.lg,
     overflow: "hidden",
   },
+  outfitLookPhoto: { width: '100%', height: '100%', backgroundColor: '#FFFDF9' },
   outfitCollage: {
     width: "100%",
     height: "100%",

@@ -13,11 +13,17 @@ import {
   PanResponder,
   Animated,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from 'expo-image-picker';
 import { Colors, Spacing, BorderRadius, Typography } from "../theme";
 import { ClothingItem, useCloset } from "../context/ClosetContext";
 import { useOutfits } from "../context/OutfitContext";
+import { uploadImageToSupabase } from '../lib/uploadImage';
 
 
 const ALL_CATEGORIES = [
@@ -25,14 +31,18 @@ const ALL_CATEGORIES = [
   "Jackets",
   "Cardigans",
   "Sweaters",
+  "Tops",
   "Blouses",
-  "T Shirts",
+  "T shirts",
   "Dresses",
   "Pants",
   "Skirts",
   "Shorts",
   "Shoes",
+  "Boots",
+  "Sneakers",
   "Bags",
+  "Jewelry",
   "Hats",
   "Accessories",
 ];
@@ -55,22 +65,8 @@ export default function StyleScreen() {
   const { width } = useWindowDimensions();
   const { items: closetItems } = useCloset();
 
-  const initialCategories = [
-    "Coats",
-    "Jackets",
-    "Cardigans",
-    "Sweaters",
-    "Blouses",
-    "T Shirts",
-    "Dresses",
-    "Pants",
-    "Skirts",
-    "Shorts",
-    "Shoes",
-    "Bags",
-    "Hats",
-    "Accessories",
-  ];
+  // A calm six-piece starting canvas. Any other category can be added only when the look needs it.
+  const initialCategories = ["Coats", "Tops", "Pants", "Shoes", "Bags", "Jewelry"];
 
   const [slots, setSlots] = useState<OutfitSlot[]>(
     initialCategories.map((cat) => buildSlot(cat, closetItems)),
@@ -83,8 +79,13 @@ export default function StyleScreen() {
   const [outfitName, setOutfitName] = useState("");
   const [selectedOccasion, setSelectedOccasion] = useState("");
   const [newOccInput, setNewOccInput] = useState("");
+  const [occasionManagerVisible, setOccasionManagerVisible] = useState(false);
+  const [editingOccasionId, setEditingOccasionId] = useState<string | null>(null);
+  const [occasionNameDraft, setOccasionNameDraft] = useState("");
+  const [lookPhotoUri, setLookPhotoUri] = useState<string | null>(null);
+  const [savingOutfit, setSavingOutfit] = useState(false);
 
-  const { addOutfit, categories, addOccasion, sharePost } = useOutfits();
+  const { saveOutfit, updateOutfit, categories, occasions, addOccasion, renameOccasion, deleteOccasion, sharePost } = useOutfits();
 
   // Share popup state
   const [shareModalVisible, setShareModalVisible] = useState(false);
@@ -133,9 +134,28 @@ export default function StyleScreen() {
 
   const handleSave = () => {
     setOutfitName("");
-    setSelectedOccasion(categories[0] || "");
+    setSelectedOccasion("");
     setNewOccInput("");
+    setLookPhotoUri(null);
     setSaveModalVisible(true);
+  };
+
+  const chooseLookPhoto = async () => {
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Photo library access is needed to add a photo wearing this look.');
+        return;
+      }
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 0.9,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      setLookPhotoUri(result.assets[0].uri);
+    }
   };
 
   const handleAddNewOccasion = () => {
@@ -146,26 +166,71 @@ export default function StyleScreen() {
     setNewOccInput("");
   };
 
-  const confirmSave = () => {
-    if (!outfitName.trim() || !selectedOccasion) return;
+  const saveManagedOccasion = async () => {
+    const nextName = occasionNameDraft.trim();
+    if (!editingOccasionId || !nextName) return;
+    try {
+      await renameOccasion(editingOccasionId, nextName);
+      if (selectedOccasion === occasions.find((occasion) => occasion.id === editingOccasionId)?.name) setSelectedOccasion(nextName);
+      setEditingOccasionId(null);
+      setOccasionNameDraft("");
+    } catch {
+      // Keep the dialog open so the user can correct a duplicate name.
+    }
+  };
+
+  const removeManagedOccasion = async (id: string, name: string) => {
+    try {
+      await deleteOccasion(id);
+      if (selectedOccasion === name) setSelectedOccasion("");
+    } catch {
+      // The list remains unchanged when deletion is not permitted.
+    }
+  };
+
+  const confirmSave = async () => {
+    if (!outfitName.trim() || savingOutfit) return;
     const selectedItems = slots
       .filter((s) => s.items.length > 0)
       .map((s) => s.items[s.currentIndex]);
-    addOutfit({
-      id: `outfit-${Date.now()}`,
-      name: outfitName.trim(),
-      items: selectedItems,
-      occasion: selectedOccasion,
-      season: "All Season",
-      createdDate: new Date().toISOString().split("T")[0],
-      isShared: false,
-      likes: 0,
-      outfitCategory: selectedOccasion,
-    });
-    setSaveModalVisible(false);
-    setSavedCategoryName(selectedOccasion);
-    setSavedOutfit(true);
-    setTimeout(() => setSavedOutfit(false), 3000);
+    try {
+      setSavingOutfit(true);
+      const selectedOccasionRecord = occasions.find((occasion) => occasion.name === selectedOccasion);
+
+      // Save the wardrobe selection first. An optional photo must never stop a user
+      // from saving the outfit itself.
+      const createdOutfit = await saveOutfit({
+        name: outfitName.trim(),
+        item_ids: selectedItems.map((item) => item.id),
+        occasion_id: selectedOccasionRecord?.id ?? null,
+        look_image_url: null,
+      });
+
+      let photoNotice = '';
+      if (lookPhotoUri) {
+        const lookImageUrl = await uploadImageToSupabase(lookPhotoUri, 'worn-look');
+        if (!lookImageUrl) {
+          photoNotice = ' The outfit was saved, but the photo could not upload. You can add it later from Edit Outfit.';
+        } else {
+          try {
+            await updateOutfit(createdOutfit.id, { look_image_url: lookImageUrl });
+          } catch {
+            photoNotice = ' The outfit was saved, but the photo needs the one-time database update before it can save.';
+          }
+        }
+      }
+
+      setSaveModalVisible(false);
+      setSavedCategoryName(selectedOccasion || 'Saved outfits');
+      setSavedOutfit(true);
+      setTimeout(() => setSavedOutfit(false), 3000);
+      if (photoNotice) Alert.alert('Outfit saved', photoNotice.trim());
+    } catch (error) {
+      console.error('Could not save outfit:', error);
+      Alert.alert('Could not save outfit', 'Please check that you are signed in, then try again.');
+    } finally {
+      setSavingOutfit(false);
+    }
   };
 
   const openPicker = (slotIndex: number) => {
@@ -483,110 +548,169 @@ export default function StyleScreen() {
       <Modal
         visible={saveModalVisible}
         transparent
-        animationType="slide"
+        animationType="fade"
         onRequestClose={() => setSaveModalVisible(false)}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setSaveModalVisible(false)}
-        >
-          <View
-            style={[
-              styles.modalSheet,
-              { paddingHorizontal: Spacing.base, paddingBottom: 40 },
-            ]}
+        <View style={styles.saveModalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.saveModalKeyboard}
           >
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Save Outfit</Text>
-
-            {/* Outfit name */}
-            <Text style={styles.inputLabel}>Outfit name</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="e.g. Spring Brunch, Date Night..."
-              placeholderTextColor={Colors.textSecondary}
-              value={outfitName}
-              onChangeText={setOutfitName}
-              autoFocus
-              returnKeyType="done"
-            />
-
-            {/* Category picker */}
-            <Text style={[styles.inputLabel, { marginTop: Spacing.md }]}>
-              Save to occasion
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{ marginBottom: Spacing.sm }}
-            >
-              <View
-                style={{
-                  flexDirection: "row",
-                  gap: Spacing.sm,
-                  paddingVertical: 4,
-                }}
-              >
-                {categories.map((cat) => (
-                  <TouchableOpacity
-                    key={cat}
-                    onPress={() => setSelectedOccasion(cat)}
-                    style={[
-                      styles.catChip,
-                      selectedOccasion === cat && styles.catChipSelected,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.catChipText,
-                        selectedOccasion === cat && styles.catChipTextSelected,
-                      ]}
-                    >
-                      {cat}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            <View style={styles.saveModalSheet}>
+              <View style={styles.saveModalHeader}>
+                <View style={styles.modalHandle} />
+                <TouchableOpacity
+                  style={styles.saveModalCloseButton}
+                  onPress={() => setSaveModalVisible(false)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="close" size={22} color={Colors.textPrimary} />
+                </TouchableOpacity>
               </View>
-            </ScrollView>
+              <Text style={styles.modalTitle}>Save Outfit</Text>
+              <Text style={styles.saveModalSubtitle}>Give this look a name, then choose where to save it.</Text>
 
-            {/* Create new category */}
-            <View style={styles.newCatRow}>
+              <Text style={styles.inputLabel}>Outfit name</Text>
               <TextInput
-                style={styles.newOccInput}
-                placeholder="Create new occasion..."
+                style={styles.textInput}
+                placeholder="e.g. Spring Brunch, Date Night..."
                 placeholderTextColor={Colors.textSecondary}
-                value={newOccInput}
-                onChangeText={setNewOccInput}
+                value={outfitName}
+                onChangeText={setOutfitName}
+                autoFocus
                 returnKeyType="done"
-                onSubmitEditing={handleAddNewOccasion}
               />
+
+              <Text style={[styles.inputLabel, { marginTop: Spacing.md }]}>Occasion <Text style={styles.optionalLabel}>(optional)</Text></Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.sm }} keyboardShouldPersistTaps="handled">
+                <View style={styles.saveModalChips}>
+                  {categories.map((cat) => (
+                    <TouchableOpacity
+                      key={cat}
+                      onPress={() => setSelectedOccasion(cat)}
+                      style={[styles.catChip, selectedOccasion === cat && styles.catChipSelected]}
+                    >
+                      <Text style={[styles.catChipText, selectedOccasion === cat && styles.catChipTextSelected]}>{cat}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+
+              <View style={styles.newCatRow}>
+                <TextInput
+                  style={styles.newOccInput}
+                  placeholder="Create new occasion..."
+                  placeholderTextColor={Colors.textSecondary}
+                  value={newOccInput}
+                  onChangeText={setNewOccInput}
+                  returnKeyType="done"
+                  onSubmitEditing={handleAddNewOccasion}
+                />
+                <TouchableOpacity
+                  style={[styles.addCatBtn, !newOccInput.trim() && { opacity: 0.4 }]}
+                  onPress={handleAddNewOccasion}
+                  disabled={!newOccInput.trim()}
+                >
+                  <Ionicons name="add" size={20} color={Colors.white} />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity style={styles.manageOccasionsLink} onPress={() => setOccasionManagerVisible(true)}>
+                <Ionicons name="create-outline" size={16} color={Colors.primary} />
+                <Text style={styles.manageOccasionsText}>Edit shared occasions</Text>
+              </TouchableOpacity>
+
+              <Text style={[styles.inputLabel, { marginTop: Spacing.md }]}>PHOTO WEARING THIS LOOK <Text style={styles.optionalLabel}>(optional)</Text></Text>
+              <TouchableOpacity style={styles.lookPhotoCard} onPress={chooseLookPhoto} activeOpacity={0.82}>
+                {lookPhotoUri ? (
+                  <Image source={{ uri: lookPhotoUri }} style={styles.lookPhotoPreview} resizeMode="cover" />
+                ) : (
+                  <View style={styles.lookPhotoIcon}>
+                    <Ionicons name="person-add-outline" size={22} color={Colors.primary} />
+                  </View>
+                )}
+                <View style={styles.lookPhotoCopy}>
+                  <Text style={styles.lookPhotoTitle}>{lookPhotoUri ? 'Photo ready to upload' : 'Add a photo wearing this look'}</Text>
+                  <Text style={styles.lookPhotoText}>{lookPhotoUri ? 'Tap to choose a different image' : 'Use it as the visual in Saved, Profile, or a Story.'}</Text>
+                </View>
+                {lookPhotoUri ? (
+                  <TouchableOpacity style={styles.removeLookPhotoBtn} onPress={() => setLookPhotoUri(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <Ionicons name="close-circle" size={22} color={Colors.textSecondary} />
+                  </TouchableOpacity>
+                ) : (
+                  <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
+                )}
+              </TouchableOpacity>
+
               <TouchableOpacity
-                style={[
-                  styles.addCatBtn,
-                  !newOccInput.trim() && { opacity: 0.4 },
-                ]}
-                onPress={handleAddNewOccasion}
-                disabled={!newOccInput.trim()}
+                style={[styles.confirmSaveBtn, (!outfitName.trim() || savingOutfit) && { opacity: 0.4 }]}
+                onPress={confirmSave}
+                disabled={!outfitName.trim() || savingOutfit}
               >
-                <Ionicons name="add" size={20} color={Colors.white} />
+                {savingOutfit ? <ActivityIndicator size="small" color={Colors.white} /> : <Ionicons name="bookmark" size={16} color={Colors.white} />}
+                <Text style={styles.confirmSaveBtnText}>{savingOutfit ? 'Saving...' : 'Save Outfit'}</Text>
               </TouchableOpacity>
             </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
 
-            {/* Save button */}
-            <TouchableOpacity
-              style={[
-                styles.confirmSaveBtn,
-                (!outfitName.trim() || !selectedOccasion) && { opacity: 0.4 },
-              ]}
-              onPress={confirmSave}
-              disabled={!outfitName.trim() || !selectedOccasion}
-            >
-              <Ionicons name="bookmark" size={16} color={Colors.white} />
-              <Text style={styles.confirmSaveBtnText}>Save Outfit</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
+      {/* Shared Occasion Manager */}
+      <Modal
+        visible={occasionManagerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setOccasionManagerVisible(false); setEditingOccasionId(null); }}
+      >
+        <View style={styles.saveModalOverlay}>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.saveModalKeyboard}>
+            <View style={styles.saveModalSheet}>
+              <View style={styles.saveModalHeader}>
+                <View style={styles.modalHandle} />
+                <TouchableOpacity style={styles.saveModalCloseButton} onPress={() => { setOccasionManagerVisible(false); setEditingOccasionId(null); }}>
+                  <Ionicons name="close" size={22} color={Colors.textPrimary} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.modalTitle}>{editingOccasionId ? "Rename occasion" : "Shared occasions"}</Text>
+              {editingOccasionId ? (
+                <>
+                  <Text style={styles.saveModalSubtitle}>This change appears in both items and outfits.</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={occasionNameDraft}
+                    onChangeText={setOccasionNameDraft}
+                    autoFocus
+                    returnKeyType="done"
+                    onSubmitEditing={saveManagedOccasion}
+                  />
+                  <TouchableOpacity style={styles.confirmSaveBtn} onPress={saveManagedOccasion}>
+                    <Text style={styles.confirmSaveBtnText}>Save name</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <ScrollView style={styles.occasionManagerList} contentContainerStyle={styles.occasionManagerListContent}>
+                  {occasions.length === 0 ? (
+                    <Text style={styles.saveModalSubtitle}>No shared occasions yet. Add one from the Save Outfit sheet or any item.</Text>
+                  ) : occasions.map((occasion) => (
+                    <View key={occasion.id} style={styles.occasionManagerRow}>
+                      <View style={styles.occasionManagerName}>
+                        <Ionicons name="calendar-outline" size={18} color={Colors.primary} />
+                        <Text style={styles.categoryOptionText}>{occasion.name}</Text>
+                      </View>
+                      <View style={styles.occasionManagerActions}>
+                        <TouchableOpacity onPress={() => { setEditingOccasionId(occasion.id); setOccasionNameDraft(occasion.name); }} style={styles.occasionManagerIcon}>
+                          <Ionicons name="pencil-outline" size={18} color={Colors.primary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => removeManagedOccasion(occasion.id, occasion.name)} style={styles.occasionManagerIcon}>
+                          <Ionicons name="trash-outline" size={18} color="#D93025" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
       {/* Share Outfit Modal */}
@@ -926,6 +1050,128 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "flex-end",
+  },
+  saveModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  saveModalKeyboard: {
+    width: "100%",
+  },
+  saveModalSheet: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xl,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  saveModalHeader: {
+    minHeight: 28,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  saveModalCloseButton: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.background,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  saveModalSubtitle: {
+    color: Colors.textSecondary,
+    textAlign: "center",
+    fontSize: Typography.fontSize.sm,
+    lineHeight: 19,
+    marginTop: -Spacing.xs,
+    marginBottom: Spacing.base,
+  },
+  saveModalChips: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    paddingVertical: 4,
+  },
+  optionalLabel: {
+    fontWeight: "400",
+    color: Colors.textSecondary,
+  },
+  manageOccasionsLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    alignSelf: "flex-start",
+    marginBottom: Spacing.base,
+  },
+  manageOccasionsText: {
+    color: Colors.primary,
+    fontSize: Typography.fontSize.sm,
+    fontWeight: "600",
+  },
+  lookPhotoCard: {
+    minHeight: 74,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    backgroundColor: Colors.white,
+  },
+  lookPhotoIcon: {
+    width: 52,
+    height: 58,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primaryLight,
+  },
+  lookPhotoPreview: { width: 52, height: 58, borderRadius: BorderRadius.sm, backgroundColor: Colors.background },
+  lookPhotoCopy: { flex: 1 },
+  lookPhotoTitle: { color: Colors.textPrimary, fontSize: Typography.fontSize.sm, fontWeight: '800' },
+  lookPhotoText: { marginTop: 3, color: Colors.textSecondary, fontSize: Typography.fontSize.xs, lineHeight: 16 },
+  removeLookPhotoBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  occasionManagerList: {
+    maxHeight: 280,
+  },
+  occasionManagerListContent: {
+    paddingBottom: Spacing.sm,
+  },
+  occasionManagerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cardBorder,
+    paddingVertical: Spacing.md,
+  },
+  occasionManagerName: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  occasionManagerActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+  },
+  occasionManagerIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: Colors.background,
+    alignItems: "center",
+    justifyContent: "center",
   },
   modalSheet: {
     backgroundColor: Colors.white,

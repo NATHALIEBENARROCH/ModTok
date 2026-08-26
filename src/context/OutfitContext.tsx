@@ -6,6 +6,7 @@ export interface Outfit {
   name: string;
   occasion_id: string | null;
   item_ids: string[];
+  look_image_url: string | null;
   created_at: string;
 }
 
@@ -50,10 +51,10 @@ interface OutfitContextType {
   addOccasion: (name: string) => Promise<void>;
   renameOccasion: (id: string, name: string) => Promise<void>;
   deleteOccasion: (id: string) => Promise<void>;
-  saveOutfit: (outfit: Omit<Outfit, 'id' | 'created_at'>) => Promise<void>;
+  saveOutfit: (outfit: Omit<Outfit, 'id' | 'created_at'>) => Promise<Outfit>;
   updateOutfit: (
     id: string,
-    changes: Partial<Pick<Outfit, 'name' | 'occasion_id' | 'item_ids'>>,
+    changes: Partial<Pick<Outfit, 'name' | 'occasion_id' | 'item_ids' | 'look_image_url'>>,
   ) => Promise<void>;
   deleteOutfit: (id: string) => Promise<void>;
   addOutfit: (outfit: any) => Promise<void>;
@@ -121,6 +122,7 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         name: row.name,
         occasion_id: row.occasion_id ?? null,
         item_ids: row.item_ids ?? [],
+        look_image_url: row.look_image_url ?? null,
         created_at: row.created_at,
       }))
     );
@@ -204,37 +206,42 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setOccasions((previous) => previous.filter((occasion) => occasion.id !== id));
   }, []);
 
-  const saveOutfit = useCallback(async (outfit: Omit<Outfit, 'id' | 'created_at'>) => {
+  const saveOutfit = useCallback(async (outfit: Omit<Outfit, 'id' | 'created_at'>): Promise<Outfit> => {
     const userId = await getCurrentUserId();
-    if (!userId) return;
+    if (!userId) throw new Error('You need to sign in before saving an outfit.');
+
+    // The base outfit must always save, even if a newer optional photo column
+    // has not yet been added to an older database.
+    const payload: Record<string, unknown> = {
+      user_id: userId,
+      name: outfit.name,
+      item_ids: outfit.item_ids,
+      occasion_id: outfit.occasion_id,
+    };
+    if (outfit.look_image_url) payload.look_image_url = outfit.look_image_url;
+
     const { data, error } = await supabase
       .from('outfits')
-      .insert({
-        user_id: userId,
-        name: outfit.name,
-        item_ids: outfit.item_ids,
-        occasion_id: outfit.occasion_id,
-      })
+      .insert(payload)
       .select()
       .single();
     if (error) throw error;
-    if (data) {
-      setOutfits((previous) => [
-        {
-          id: data.id,
-          name: data.name,
-          occasion_id: data.occasion_id ?? null,
-          item_ids: data.item_ids ?? [],
-          created_at: data.created_at,
-        },
-        ...previous,
-      ]);
-    }
+
+    const saved: Outfit = {
+      id: data.id,
+      name: data.name,
+      occasion_id: data.occasion_id ?? null,
+      item_ids: data.item_ids ?? [],
+      look_image_url: data.look_image_url ?? null,
+      created_at: data.created_at,
+    };
+    setOutfits((previous) => [saved, ...previous]);
+    return saved;
   }, []);
 
   const updateOutfit = useCallback(async (
     id: string,
-    changes: Partial<Pick<Outfit, 'name' | 'occasion_id' | 'item_ids'>>,
+    changes: Partial<Pick<Outfit, 'name' | 'occasion_id' | 'item_ids' | 'look_image_url'>>,
   ) => {
     const userId = await getCurrentUserId();
     if (!userId) throw new Error('You need to sign in before editing a saved outfit.');
@@ -243,6 +250,7 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (changes.name !== undefined) payload.name = changes.name.trim();
     if (changes.occasion_id !== undefined) payload.occasion_id = changes.occasion_id;
     if (changes.item_ids !== undefined) payload.item_ids = changes.item_ids;
+    if (changes.look_image_url !== undefined) payload.look_image_url = changes.look_image_url;
 
     const { data, error } = await supabase
       .from('outfits')
@@ -262,6 +270,7 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               name: saved.name,
               occasion_id: saved.occasion_id ?? null,
               item_ids: saved.item_ids ?? [],
+              look_image_url: saved.look_image_url ?? null,
               created_at: saved.created_at,
             }
           : outfit,
@@ -287,6 +296,7 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         occasion: outfit.occasion ?? outfit.outfitCategory ?? null,
         season: outfit.season ?? null,
         is_shared: outfit.isShared ?? false,
+        look_image_url: outfit.look_image_url ?? null,
       })
       .select()
       .single();
@@ -298,6 +308,7 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           name: data.name,
           occasion_id: data.occasion_id ?? null,
           item_ids: data.item_ids ?? [],
+          look_image_url: data.look_image_url ?? null,
           created_at: data.created_at,
         },
         ...previous,

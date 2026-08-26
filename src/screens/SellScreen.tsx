@@ -92,10 +92,6 @@ export default function SellScreen() {
   const potentialEarnings = saleItems.reduce((sum, item) => sum + (item.salePrice || 0), 0);
 
   const openListingFlow = () => {
-    if (activeTab === 'Sold') {
-      setActiveTab('For Sale');
-      return;
-    }
     navigation.navigate('SellItemPicker', { listingType: activeTab === 'For Rent' ? 'rent' : 'sale' });
   };
 
@@ -175,19 +171,25 @@ export default function SellScreen() {
         </View>
       </View>
 
-      <View style={styles.filterRow}>
-        <View style={styles.tabRow}>
-          {SELL_TABS.map((tab) => (
-            <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)} style={[styles.tab, activeTab === tab && styles.activeTab]}>
-              <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
+        <View style={styles.filterRow}>
+          <View style={styles.tabRow}>
+            {SELL_TABS.map((tab) => (
+              <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)} style={[styles.tab, activeTab === tab && styles.activeTab]}>
+                <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={styles.categoryActionRow}>
+            <TouchableOpacity style={styles.categoryPill} onPress={() => setShowCategoryPicker(true)}>
+              <Text style={styles.categoryPillText}>{selectedCategory === 'All' ? 'All Categories' : selectedCategory}</Text>
+              <Ionicons name="chevron-down" size={14} color={Colors.white} />
             </TouchableOpacity>
-          ))}
+            <TouchableOpacity style={styles.headerListButton} onPress={openListingFlow}>
+              <Ionicons name="add" size={18} color={Colors.white} />
+              <Text style={styles.headerListButtonText}>List an Item</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-        <TouchableOpacity style={styles.categoryPill} onPress={() => setShowCategoryPicker(true)}>
-          <Text style={styles.categoryPillText}>{selectedCategory === 'All' ? 'All Categories' : selectedCategory}</Text>
-          <Ionicons name="chevron-down" size={14} color={Colors.white} />
-        </TouchableOpacity>
-      </View>
 
       {displayItems.length === 0 ? (
         <View style={styles.emptyState}>
@@ -254,8 +256,11 @@ const styles = StyleSheet.create({
   activeTab: { backgroundColor: Colors.black, borderColor: Colors.black },
   tabText: { fontSize: Typography.fontSize.sm, fontWeight: '600', color: Colors.textPrimary },
   activeTabText: { color: Colors.white },
+  categoryActionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
   categoryPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: Colors.black, borderRadius: BorderRadius.pill, paddingHorizontal: Spacing.base, paddingVertical: 7, gap: 6 },
   categoryPillText: { color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: '600' },
+  headerListButton: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: Colors.primary, borderRadius: BorderRadius.pill, paddingHorizontal: Spacing.md, paddingVertical: 8 },
+  headerListButtonText: { color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: '800' },
   list: { paddingHorizontal: Spacing.base },
   sellCard: { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, marginBottom: Spacing.base, overflow: 'hidden', borderWidth: 1, borderColor: Colors.cardBorder, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   categoryLabel: { alignSelf: 'center', backgroundColor: Colors.black, borderRadius: BorderRadius.pill, paddingHorizontal: Spacing.base, paddingVertical: 4, marginTop: Spacing.md, marginBottom: Spacing.sm },

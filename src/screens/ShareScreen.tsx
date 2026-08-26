@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
 import { ShareStory, useOutfit } from '../context/OutfitContext';
 import { useCloset } from '../context/ClosetContext';
+import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 
 function storyCover(story: ShareStory) {
@@ -29,7 +30,8 @@ function displayName(story: ShareStory, own: boolean) {
   return 'Style story';
 }
 
-export default function ShareScreen() {
+export default function ShareScreen({ route }: { route?: any }) {
+  const navigation = useNavigation<any>();
   const { outfits, shareStories, createShareStory } = useOutfit();
   const { items } = useCloset();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -79,14 +81,23 @@ export default function ShareScreen() {
     setCreatorVisible(true);
   };
 
+  useEffect(() => {
+    if (route?.params?.openStoryCreator) {
+      openCreator();
+      navigation.setParams({ openStoryCreator: undefined });
+    }
+  }, [route?.params?.openStoryCreator]);
+
   const shareStory = async () => {
     if (!selectedOutfit) {
       Alert.alert('Choose a saved outfit', 'Save an outfit in Style first, then come back to share it as a story.');
       return;
     }
-    const imageUrls = selectedOutfitItems
-      .map((item) => item?.image_url ?? item?.image)
-      .filter((url): url is string => Boolean(url));
+    const imageUrls = selectedOutfit.look_image_url
+      ? [selectedOutfit.look_image_url]
+      : selectedOutfitItems
+          .map((item) => item?.image_url ?? item?.image)
+          .filter((url): url is string => Boolean(url));
     if (imageUrls.length === 0) {
       Alert.alert('No outfit photos', 'This outfit needs at least one wardrobe photo before it can become a story.');
       return;
@@ -220,7 +231,7 @@ export default function ShareScreen() {
                 outfits.map((outfit) => {
                   const active = selectedOutfitId === outfit.id;
                   const outfitItems = outfit.item_ids.map((id) => items.find((item) => item.id === id)).filter(Boolean);
-                  const cover = outfitItems[0]?.image_url ?? outfitItems[0]?.image;
+                  const cover = outfit.look_image_url ?? outfitItems[0]?.image_url ?? outfitItems[0]?.image;
                   return (
                     <TouchableOpacity key={outfit.id} style={[styles.outfitChoice, active && styles.outfitChoiceActive]} onPress={() => setSelectedOutfitId(outfit.id)}>
                       {cover ? <Image source={{ uri: cover }} style={styles.outfitChoiceImage} resizeMode="contain" /> : <View style={styles.outfitChoiceFallback}><Ionicons name="shirt-outline" size={24} color={Colors.primary} /></View>}

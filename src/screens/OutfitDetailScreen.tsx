@@ -14,10 +14,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
 import { ClothingItem, useCloset } from '../context/ClosetContext';
 import { Outfit, useOutfit } from '../context/OutfitContext';
+import { uploadImageToSupabase } from '../lib/uploadImage';
 
 export default function OutfitDetailScreen() {
   const navigation = useNavigation<any>();
@@ -31,6 +33,7 @@ export default function OutfitDetailScreen() {
   const [nameDraft, setNameDraft] = useState('');
   const [occasionDraft, setOccasionDraft] = useState('');
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [lookPhotoUri, setLookPhotoUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedConfirmation, setSavedConfirmation] = useState(false);
 
@@ -39,7 +42,8 @@ export default function OutfitDetailScreen() {
     setNameDraft(outfit.name);
     setOccasionDraft(outfit.occasion_id ?? '');
     setSelectedItemIds(outfit.item_ids ?? []);
-  }, [outfit?.id, outfit?.name, outfit?.occasion_id, outfit?.item_ids]);
+    setLookPhotoUri(outfit.look_image_url ?? null);
+  }, [outfit?.id, outfit?.name, outfit?.occasion_id, outfit?.item_ids, outfit?.look_image_url]);
 
   const outfitItems = useMemo(() => {
     if (!outfit) return [];
@@ -73,7 +77,24 @@ export default function OutfitDetailScreen() {
     setNameDraft(outfit.name);
     setOccasionDraft(outfit.occasion_id ?? '');
     setSelectedItemIds(outfit.item_ids ?? []);
+    setLookPhotoUri(outfit.look_image_url ?? null);
     setEditorVisible(true);
+  };
+
+  const chooseLookPhoto = async () => {
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Photo library access is needed to add a photo wearing this look.');
+        return;
+      }
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      quality: 0.9,
+    });
+    if (!result.canceled && result.assets.length > 0) setLookPhotoUri(result.assets[0].uri);
   };
 
   const toggleItem = (itemId: string) => {
@@ -97,10 +118,19 @@ export default function OutfitDetailScreen() {
 
     setSaving(true);
     try {
+      let lookImageUrl = lookPhotoUri;
+      if (lookPhotoUri && !lookPhotoUri.startsWith('http')) {
+        lookImageUrl = await uploadImageToSupabase(lookPhotoUri, 'worn-look');
+        if (!lookImageUrl) {
+          Alert.alert('Could not upload photo', 'Please choose the photo again and retry.');
+          return;
+        }
+      }
       await updateOutfit(outfit.id, {
         name: nextName,
         occasion_id: occasionDraft || null,
         item_ids: selectedItemIds,
+        look_image_url: lookImageUrl,
       });
       setEditorVisible(false);
       setSavedConfirmation(true);
@@ -142,6 +172,13 @@ export default function OutfitDetailScreen() {
             </Text>
           </View>
         </View>
+
+        {outfit.look_image_url && (
+          <View style={styles.lookPhotoHero}>
+            <Image source={{ uri: outfit.look_image_url }} style={styles.lookPhotoHeroImage} resizeMode="contain" />
+            <View style={styles.lookPhotoLabel}><Ionicons name="person-outline" size={14} color={Colors.white} /><Text style={styles.lookPhotoLabelText}>Wearing this look</Text></View>
+          </View>
+        )}
 
         <View style={styles.metaRow}>
           <View style={styles.metaTag}>
@@ -212,6 +249,16 @@ export default function OutfitDetailScreen() {
                 placeholderTextColor={Colors.mediumGray}
                 returnKeyType="done"
               />
+
+              <Text style={styles.fieldLabel}>PHOTO WEARING THIS LOOK <Text style={styles.optionalLabel}>(OPTIONAL)</Text></Text>
+              <TouchableOpacity style={styles.lookPhotoEditorCard} onPress={chooseLookPhoto} activeOpacity={0.82}>
+                {lookPhotoUri ? <Image source={{ uri: lookPhotoUri }} style={styles.lookPhotoEditorPreview} resizeMode="cover" /> : <View style={styles.lookPhotoEditorIcon}><Ionicons name="person-add-outline" size={22} color={Colors.primary} /></View>}
+                <View style={styles.lookPhotoEditorCopy}>
+                  <Text style={styles.lookPhotoEditorTitle}>{lookPhotoUri ? 'Photo ready to save' : 'Add a photo wearing this look'}</Text>
+                  <Text style={styles.lookPhotoEditorText}>{lookPhotoUri ? 'Tap to choose another image' : 'Use it for Saved, Profile, and Share.'}</Text>
+                </View>
+                {lookPhotoUri ? <TouchableOpacity style={styles.removeLookPhotoBtn} onPress={() => setLookPhotoUri(null)}><Ionicons name="close-circle" size={22} color={Colors.textSecondary} /></TouchableOpacity> : <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />}
+              </TouchableOpacity>
 
               <Text style={styles.fieldLabel}>OCCASION <Text style={styles.optionalLabel}>(OPTIONAL)</Text></Text>
               <TouchableOpacity
@@ -322,6 +369,10 @@ const styles = StyleSheet.create({
     padding: Spacing.base, gap: Spacing.sm,
   },
   heroCopy: { flex: 1 },
+  lookPhotoHero: { height: 440, marginTop: Spacing.md, borderRadius: BorderRadius.lg, overflow: 'hidden', backgroundColor: Colors.background, position: 'relative' },
+  lookPhotoHeroImage: { width: '100%', height: '100%' },
+  lookPhotoLabel: { position: 'absolute', left: Spacing.sm, bottom: Spacing.sm, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.sm, paddingVertical: 6, backgroundColor: 'rgba(0,0,0,0.68)', borderRadius: BorderRadius.pill },
+  lookPhotoLabelText: { color: Colors.white, fontSize: Typography.fontSize.xs, fontWeight: '800' },
   heroTitle: { fontSize: Typography.fontSize.lg, fontWeight: '700', color: Colors.textPrimary },
   heroSubtitle: { marginTop: 3, fontSize: Typography.fontSize.sm, color: Colors.textSecondary },
   metaRow: { flexDirection: 'row', marginTop: Spacing.md, marginBottom: Spacing.xl },
@@ -375,6 +426,13 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: Typography.fontSize.xs, fontWeight: '700', letterSpacing: 0.5, color: Colors.textSecondary, marginTop: Spacing.md, marginBottom: Spacing.sm },
   optionalLabel: { fontWeight: '500', textTransform: 'none', letterSpacing: 0 },
   nameInput: { backgroundColor: Colors.white, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.cardBorder, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, color: Colors.textPrimary, fontSize: Typography.fontSize.base },
+  lookPhotoEditorCard: { minHeight: 74, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.sm, borderWidth: 1, borderColor: Colors.cardBorder, borderRadius: BorderRadius.md, backgroundColor: Colors.white },
+  lookPhotoEditorIcon: { width: 52, height: 58, borderRadius: BorderRadius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primaryLight },
+  lookPhotoEditorPreview: { width: 52, height: 58, borderRadius: BorderRadius.sm, backgroundColor: Colors.background },
+  lookPhotoEditorCopy: { flex: 1 },
+  lookPhotoEditorTitle: { color: Colors.textPrimary, fontSize: Typography.fontSize.sm, fontWeight: '800' },
+  lookPhotoEditorText: { marginTop: 3, color: Colors.textSecondary, fontSize: Typography.fontSize.xs, lineHeight: 16 },
+  removeLookPhotoBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   occasionList: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   occasionChip: { alignSelf: 'flex-start', borderRadius: BorderRadius.pill, paddingHorizontal: Spacing.md, paddingVertical: 8, borderWidth: 1, borderColor: Colors.cardBorder, backgroundColor: Colors.white, marginBottom: Spacing.sm },
   occasionChipActive: { backgroundColor: Colors.black, borderColor: Colors.black },
