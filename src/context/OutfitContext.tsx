@@ -35,6 +35,7 @@ export interface ShareStory {
   caption: string;
   image_urls: string[];
   tagged_item_id: string | null;
+  tagged_listing_id?: string | null;
   tagged_item_name: string | null;
   tagged_item_price: number | null;
   created_at: string;
@@ -148,17 +149,24 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const loadShareStories = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('share_stories')
-      .select('*')
-      .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false });
+    const userId = await getCurrentUserId();
+    const [{ data, error }, { data: blockedRows }] = await Promise.all([
+      supabase
+        .from('share_stories')
+        .select('*')
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false }),
+      userId
+        ? supabase.from('user_blocks').select('blocked_id').eq('blocker_id', userId)
+        : Promise.resolve({ data: [] as { blocked_id: string }[] }),
+    ]);
     if (error) {
       console.warn('Could not load share stories:', error.message);
       setShareStories([]);
       return;
     }
-    setShareStories((data ?? []) as ShareStory[]);
+    const blocked = new Set((blockedRows ?? []).map((row: any) => row.blocked_id));
+    setShareStories(((data ?? []) as ShareStory[]).filter((story) => !blocked.has(story.user_id)));
   }, []);
 
   const reloadAll = useCallback(async () => {
@@ -348,6 +356,7 @@ export const OutfitProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         caption: story.caption,
         image_urls: story.image_urls,
         tagged_item_id: story.tagged_item_id,
+        tagged_listing_id: story.tagged_listing_id ?? null,
         tagged_item_name: story.tagged_item_name,
         tagged_item_price: story.tagged_item_price,
       })

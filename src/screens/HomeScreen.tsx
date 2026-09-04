@@ -30,7 +30,10 @@ const SORT_CATEGORIES: SortCategory[] = [
   { category: 'Pants', label: 'Browse your Pants', icon: 'color-palette-outline' },
   { category: 'Skirts', label: 'Browse your Skirts', icon: 'sparkles-outline' },
   { category: 'Shoes', label: 'Browse your Shoes', icon: 'footsteps-outline' },
+  { category: 'Boots', label: 'Browse your Boots', icon: 'walk-outline' },
+  { category: 'Sneakers', label: 'Browse your Sneakers', icon: 'footsteps-outline' },
   { category: 'Bags', label: 'Browse your Bags', icon: 'bag-handle-outline' },
+  { category: 'Jewelry', label: 'Browse your Jewelry', icon: 'diamond-outline' },
   { category: 'Accessories', label: 'Browse your Accessories', icon: 'watch-outline' },
 ];
 

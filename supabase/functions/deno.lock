@@ -1,0 +1,14 @@
+{
+  "version": "4",
+  "specifiers": {
+    "npm:stripe@22.0.0": "22.0.0"
+  },
+  "npm": {
+    "stripe@22.0.0": {
+      "integrity": "sha512-q1UgXXpSfZCmkyzZEh3vFEWT7+ajuaFGqaP9Tsi2NMtwlkigIWNr+KBIUQqtNeNEsreDKgdn+BP5HRW9JDj22Q=="
+    }
+  },
+  "remote": {
+    "https://esm.sh/@supabase/supabase-js@2.57.4": "05a369085eb4a4c99d85ccece97f0cf1e05357122e0e74373da1f0e91b014902"
+  }
+}

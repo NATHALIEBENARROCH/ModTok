@@ -1,69 +1,51 @@
-import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  StyleSheet,
-  Modal,
   FlatList,
+  Image,
+  Linking,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { Colors, Spacing, BorderRadius, Typography } from '../theme';
-import { ClothingItem, useCloset } from '../context/ClosetContext';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useMarketplace } from '../context/MarketplaceContext';
 import { useOutfit } from '../context/OutfitContext';
+import { MarketplaceListing, formatUsd } from '../types/marketplace';
+import { BorderRadius, Colors, Spacing, Typography } from '../theme';
 
-const SELL_TABS = ['For Sale', 'For Rent', 'Sold'] as const;
-const CATEGORIES = [
-  'All', 'Coats', 'Jackets', 'Cardigans', 'Sweaters', 'Tops', 'Blouses',
-  'T shirts', 'Dresses', 'Pants', 'Skirts', 'Shorts', 'Shoes', 'Boots', 'Sneakers',
-  'Bags', 'Jewelry', 'Accessories', 'Activewear',
-];
+type SellTab = 'Active' | 'Sold' | 'Archived';
 
-type SellTab = typeof SELL_TABS[number];
-
-function itemImage(item: ClothingItem) {
-  return item.image_url ?? item.image;
-}
-
-function SellItemCard({ item, onUnlist, onShare }: { item: ClothingItem; onUnlist: () => void; onShare: () => void }) {
-  const listingType = item.listingType === 'rent' ? 'rent' : 'sale';
-
+function ListingCard({ listing, onShare, onArchive }: { listing: MarketplaceListing; onShare: () => void; onArchive: () => void }) {
+  const image = listing.image_urls?.[0];
   return (
-    <View style={styles.sellCard}>
-      <View style={styles.categoryLabel}>
-        <Text style={styles.categoryLabelText}>{item.category}</Text>
+    <View style={styles.listingCard}>
+      <View style={styles.listingImageFrame}>
+        {image ? <Image source={{ uri: image }} style={styles.listingImage} resizeMode="contain" /> : <Ionicons name="shirt-outline" size={38} color={Colors.mediumGray} />}
       </View>
-      <View style={styles.itemCard}>
-        <Image source={{ uri: itemImage(item) }} style={styles.itemImage} resizeMode="contain" />
+      <View style={styles.listingCopy}>
+        <Text style={styles.listingTitle} numberOfLines={2}>{listing.title}</Text>
+        <Text style={styles.listingMeta}>{listing.category}{listing.size ? ` · ${listing.size}` : ''}</Text>
+        <Text style={styles.listingPrice}>{formatUsd(listing.price_cents)}</Text>
+        <Text style={styles.listingShipping}>{listing.shipping_price_cents ? `${formatUsd(listing.shipping_price_cents)} shipping` : 'Free shipping'}</Text>
       </View>
-      <View style={styles.itemInfo}>
-        <View style={styles.itemInfoLeft}>
-          <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.itemBrand} numberOfLines={1}>{item.brand || `${listingType === 'rent' ? 'For rent' : 'For sale'}`}</Text>
-        </View>
-        <View style={styles.itemInfoRight}>
-          {item.salePrice ? <Text style={styles.salePrice}>${item.salePrice}{listingType === 'rent' ? '/day' : ''}</Text> : null}
-          {item.price ? <Text style={styles.originalPrice}>${item.price}</Text> : null}
-        </View>
-      </View>
-      <View style={styles.listingStatusRow}>
-        <View style={styles.listingStatus}>
-          <Ionicons name={listingType === 'rent' ? 'calendar-outline' : 'pricetag-outline'} size={14} color={Colors.primary} />
-          <Text style={styles.listingStatusText}>{listingType === 'rent' ? 'Listed for rent' : 'Listed for sale'}</Text>
-        </View>
-        <View style={styles.listingActions}>
-          <TouchableOpacity style={styles.storyShareButton} onPress={onShare}>
-            <Ionicons name="paper-plane-outline" size={14} color={Colors.primary} />
-            <Text style={styles.storyShareButtonText}>Share to Story</Text>
+      <View style={styles.listingActions}>
+        {listing.status === 'active' && (
+          <TouchableOpacity style={styles.shareButton} onPress={onShare}>
+            <Ionicons name="paper-plane-outline" size={16} color={Colors.primary} />
+            <Text style={styles.shareText}>Story</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.unlistButton} onPress={onUnlist}>
-            <Text style={styles.unlistButtonText}>Unlist</Text>
+        )}
+        {listing.status === 'active' && (
+          <TouchableOpacity style={styles.archiveButton} onPress={onArchive}>
+            <Text style={styles.archiveText}>Unlist</Text>
           </TouchableOpacity>
-        </View>
+        )}
+        {listing.status === 'reserved' && <Text style={styles.reservedText}>Checkout in progress</Text>}
       </View>
     </View>
   );
@@ -71,229 +53,212 @@ function SellItemCard({ item, onUnlist, onShare }: { item: ClothingItem; onUnlis
 
 export default function SellScreen() {
   const navigation = useNavigation<any>();
-  const [activeTab, setActiveTab] = useState<SellTab>('For Sale');
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
-  const { items, updateItem } = useCloset();
+  const {
+    myListings,
+    sales,
+    sellerStatus,
+    loading,
+    refreshAll,
+    refreshSellerStatus,
+    startSellerOnboarding,
+    openSellerDashboard,
+    archiveListing,
+  } = useMarketplace();
   const { createShareStory } = useOutfit();
+  const [activeTab, setActiveTab] = useState<SellTab>('Active');
+  const [openingStripe, setOpeningStripe] = useState(false);
 
-  const saleItems = useMemo(
-    () => items.filter((item) => item.forSale && item.listingType !== 'rent'),
-    [items],
-  );
-  const rentalItems = useMemo(
-    () => items.filter((item) => item.forSale && item.listingType === 'rent'),
-    [items],
-  );
-  const baseItems = activeTab === 'For Sale' ? saleItems : activeTab === 'For Rent' ? rentalItems : [];
-  const displayItems = selectedCategory === 'All'
-    ? baseItems
-    : baseItems.filter((item) => item.category === selectedCategory);
-  const potentialEarnings = saleItems.reduce((sum, item) => sum + (item.salePrice || 0), 0);
+  useFocusEffect(useCallback(() => {
+    refreshAll().catch((error) => console.error('Seller hub refresh failed:', error));
+  }, [refreshAll]));
 
-  const openListingFlow = () => {
-    navigation.navigate('SellItemPicker', { listingType: activeTab === 'For Rent' ? 'rent' : 'sale' });
+  useEffect(() => {
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      if (url.includes('seller-onboarding')) refreshSellerStatus().catch(() => undefined);
+    });
+    return () => subscription.remove();
+  }, [refreshSellerStatus]);
+
+  const sellerReady = sellerStatus.details_submitted && sellerStatus.charges_enabled && sellerStatus.payouts_enabled;
+  const displayListings = useMemo(() => myListings.filter((listing) => {
+    if (activeTab === 'Active') return ['active', 'reserved'].includes(listing.status);
+    if (activeTab === 'Sold') return listing.status === 'sold';
+    return ['archived', 'draft'].includes(listing.status);
+  }), [activeTab, myListings]);
+
+  const availableBalance = useMemo(() => sales
+    .filter((order) => ['paid', 'processing', 'shipped', 'delivered'].includes(order.status))
+    .reduce((total, order) => total + order.seller_net_cents, 0), [sales]);
+
+  const openStripe = async () => {
+    try {
+      setOpeningStripe(true);
+      const url = sellerReady ? await openSellerDashboard() : await startSellerOnboarding();
+      await Linking.openURL(url);
+    } catch (error: any) {
+      Alert.alert('Seller setup could not open', error?.message ?? 'Please try again.');
+    } finally {
+      setOpeningStripe(false);
+    }
   };
 
-  const unlistItem = (item: ClothingItem) => {
-    Alert.alert('Remove listing?', `${item.name} will no longer appear on your Sell page.`, [
-      { text: 'Keep listed', style: 'cancel' },
+  const listItem = () => {
+    if (!sellerReady) {
+      Alert.alert('Set up seller payouts first', 'Stripe verifies sellers and sends proceeds to their bank account.', [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Set up payouts', onPress: openStripe },
+      ]);
+      return;
+    }
+    navigation.navigate('SellItemPicker');
+  };
+
+  const unlist = (listing: MarketplaceListing) => {
+    Alert.alert('Unlist this item?', 'It will immediately disappear from the marketplace.', [
+      { text: 'Cancel', style: 'cancel' },
       {
         text: 'Unlist',
         style: 'destructive',
         onPress: async () => {
-          const updated = await updateItem(item.id, { forSale: false, salePrice: undefined, listingType: undefined });
-          if (!updated) Alert.alert('Could not unlist item', 'Please try again.');
+          try {
+            await archiveListing(listing.id);
+          } catch (error: any) {
+            Alert.alert('Could not unlist item', error?.message ?? 'Please try again.');
+          }
         },
       },
     ]);
   };
 
-  const shareListedItem = async (item: ClothingItem) => {
-    const imageUrl = itemImage(item);
-    if (!imageUrl) {
-      Alert.alert('No photo available', 'Add a photo to this wardrobe item before sharing it to your story.');
-      return;
-    }
+  const shareListing = async (listing: MarketplaceListing) => {
+    const image = listing.image_urls?.[0];
+    if (!image) return Alert.alert('Photo required', 'This listing needs a photo before it can be shared.');
     try {
-      const listingType = item.listingType === 'rent' ? 'rent' : 'sale';
       const created = await createShareStory({
         outfit_id: null,
-        caption: `${item.name} is now available ${listingType === 'rent' ? 'for rent' : 'for sale'}.`,
-        image_urls: [imageUrl],
-        tagged_item_id: item.id,
-        tagged_item_name: item.name,
-        tagged_item_price: item.salePrice ?? null,
+        caption: `${listing.title} is available in the ModTok marketplace.`,
+        image_urls: [image],
+        tagged_item_id: listing.closet_item_id,
+        tagged_listing_id: listing.id,
+        tagged_item_name: listing.title,
+        tagged_item_price: listing.price_cents / 100,
       });
-      if (!created) {
-        Alert.alert('Could not share listing', 'Please sign in and try again.');
-        return;
-      }
-      Alert.alert('Added to Your Story', `${item.name} is now in your story with its ${listingType === 'rent' ? 'rental' : 'sale'} price.`);
-    } catch (error) {
-      Alert.alert('Could not share listing', 'Run the Share Stories setup in Supabase, then try again.');
-      console.error('share listing story error:', error);
+      if (!created) throw new Error('Please sign in again.');
+      Alert.alert('Added to Your Story', 'Viewers can tap the item to open its marketplace listing.');
+    } catch (error: any) {
+      Alert.alert('Could not share listing', error?.message ?? 'Please try again.');
     }
   };
-
-  const emptyTitle = activeTab === 'Sold'
-    ? 'No Sold Items Yet'
-    : activeTab === 'For Rent'
-      ? 'Nothing for Rent Yet'
-      : 'Nothing Listed Yet';
-  const emptySubtitle = activeTab === 'Sold'
-    ? 'Items you mark as sold will appear here.'
-    : activeTab === 'For Rent'
-      ? 'List a piece from your closet for rent.'
-      : 'List a piece from your closet for sale.';
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
         <Text style={styles.title}>Sell</Text>
-        <TouchableOpacity
-          style={styles.infoBtn}
-          onPress={() => Alert.alert('How Sell works', 'Choose a wardrobe item, choose Sell or Rent, set your price, and save the listing.')}
-        >
-          <Ionicons name="information-circle-outline" size={22} color={Colors.black} />
+        <TouchableOpacity style={styles.infoButton} onPress={() => Alert.alert('How selling works', 'Set up Stripe payouts, list a wardrobe item in USD, then ship it when a buyer pays.')}>
+          <Ionicons name="information-circle-outline" size={23} color={Colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
-      <View style={styles.earningsBanner}>
-        <View>
-          <Text style={styles.earningsLabel}>Potential Earnings</Text>
-          <Text style={styles.earningsAmount}>${potentialEarnings.toFixed(0)}</Text>
-        </View>
-        <View style={styles.earningsRight}>
-          <Ionicons name="trending-up" size={32} color={Colors.primary} />
-          <Text style={styles.earningsItems}>{saleItems.length + rentalItems.length} items listed</Text>
-        </View>
-      </View>
-
-        <View style={styles.filterRow}>
-          <View style={styles.tabRow}>
-            {SELL_TABS.map((tab) => (
-              <TouchableOpacity key={tab} onPress={() => setActiveTab(tab)} style={[styles.tab, activeTab === tab && styles.activeTab]}>
-                <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
+      <FlatList
+        data={displayListings}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={refreshAll} tintColor={Colors.primary} />}
+        ListHeaderComponent={
+          <>
+            <View style={[styles.sellerCard, sellerReady && styles.sellerCardReady]}>
+              <View style={styles.sellerIcon}>
+                <Ionicons name={sellerReady ? 'checkmark' : 'card-outline'} size={24} color={Colors.white} />
+              </View>
+              <View style={styles.sellerCopy}>
+                <Text style={styles.sellerTitle}>{sellerReady ? 'Payouts ready' : 'Set up seller payouts'}</Text>
+                <Text style={styles.sellerText}>{sellerReady ? 'Your verified Stripe account can accept USD sales.' : 'Stripe securely verifies your identity and bank details.'}</Text>
+              </View>
+              <TouchableOpacity style={styles.sellerButton} onPress={openStripe} disabled={openingStripe}>
+                <Text style={styles.sellerButtonText}>{openingStripe ? 'Opening...' : sellerReady ? 'Dashboard' : 'Start'}</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-          <View style={styles.categoryActionRow}>
-            <TouchableOpacity style={styles.categoryPill} onPress={() => setShowCategoryPicker(true)}>
-              <Text style={styles.categoryPillText}>{selectedCategory === 'All' ? 'All Categories' : selectedCategory}</Text>
-              <Ionicons name="chevron-down" size={14} color={Colors.white} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.headerListButton} onPress={openListingFlow}>
-              <Ionicons name="add" size={18} color={Colors.white} />
-              <Text style={styles.headerListButtonText}>List an Item</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+            </View>
 
-      {displayItems.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Ionicons name={activeTab === 'Sold' ? 'checkmark-done-outline' : 'pricetag-outline'} size={48} color={Colors.mediumGray} />
-          <Text style={styles.emptyTitle}>{emptyTitle}</Text>
-          <Text style={styles.emptySubtitle}>{emptySubtitle}</Text>
-          {activeTab !== 'Sold' && (
-            <TouchableOpacity style={styles.listNewBtn} onPress={openListingFlow}>
-              <Ionicons name="add" size={18} color={Colors.white} />
-              <Text style={styles.listNewBtnText}>List an Item</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      ) : (
-        <FlatList
-          data={displayItems}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => <SellItemCard item={item} onUnlist={() => unlistItem(item)} onShare={() => shareListedItem(item)} />}
-          ListFooterComponent={<View style={{ height: 118 }} />}
-        />
-      )}
+            <View style={styles.earningsCard}>
+              <View><Text style={styles.earningsLabel}>SALES IN PROGRESS</Text><Text style={styles.earningsAmount}>{formatUsd(availableBalance)}</Text></View>
+              <TouchableOpacity style={styles.ordersButton} onPress={() => navigation.navigate('Orders', { initialTab: 'Sales' })}><Ionicons name="cube-outline" size={18} color={Colors.white} /><Text style={styles.ordersText}>My Sales</Text></TouchableOpacity>
+            </View>
 
-      <Modal visible={showCategoryPicker} transparent animationType="slide" onRequestClose={() => setShowCategoryPicker(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowCategoryPicker(false)} />
-        <View style={styles.bottomSheet}>
-          <View style={styles.bottomSheetHandle} />
-          <Text style={styles.bottomSheetTitle}>Filter listings by category</Text>
-          <FlatList
-            data={CATEGORIES}
-            keyExtractor={(item) => item}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[styles.categoryOption, selectedCategory === item && styles.categoryOptionActive]}
-                onPress={() => { setSelectedCategory(item); setShowCategoryPicker(false); }}
-              >
-                <Text style={[styles.categoryOptionText, selectedCategory === item && styles.categoryOptionTextActive]}>{item === 'All' ? 'All Categories' : item}</Text>
-                {selectedCategory === item && <Ionicons name="checkmark" size={18} color={Colors.primary} />}
-              </TouchableOpacity>
-            )}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-          />
-        </View>
-      </Modal>
+            <View style={styles.quickActions}>
+              <TouchableOpacity style={styles.marketButton} onPress={() => navigation.navigate('Marketplace')}><Ionicons name="bag-handle-outline" size={19} color={Colors.textPrimary} /><Text style={styles.marketButtonText}>Browse marketplace</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.listButton} onPress={listItem}><Ionicons name="add" size={20} color={Colors.white} /><Text style={styles.listButtonText}>List an Item</Text></TouchableOpacity>
+            </View>
+
+            <View style={styles.tabs}>
+              {(['Active', 'Sold', 'Archived'] as SellTab[]).map((tab) => (
+                <TouchableOpacity key={tab} style={[styles.tab, activeTab === tab && styles.activeTab]} onPress={() => setActiveTab(tab)}>
+                  <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        }
+        renderItem={({ item }) => <ListingCard listing={item} onShare={() => shareListing(item)} onArchive={() => unlist(item)} />}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Ionicons name={activeTab === 'Sold' ? 'checkmark-done-outline' : 'pricetag-outline'} size={46} color={Colors.mediumGray} />
+            <Text style={styles.emptyTitle}>No {activeTab.toLowerCase()} listings</Text>
+            <Text style={styles.emptyText}>{activeTab === 'Active' ? 'Your live marketplace listings will appear here.' : `Your ${activeTab.toLowerCase()} items will appear here.`}</Text>
+          </View>
+        }
+        ListFooterComponent={<View style={{ height: 118 }} />}
+        showsVerticalScrollIndicator={false}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.base, paddingTop: Spacing.md, paddingBottom: Spacing.sm },
-  headerSpacer: { width: 36 },
-  title: { flex: 1, fontSize: Typography.fontSize.xl, fontWeight: '700', color: Colors.textPrimary, letterSpacing: -0.5, textAlign: 'center' },
-  infoBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  earningsBanner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.white, marginHorizontal: Spacing.base, borderRadius: BorderRadius.lg, padding: Spacing.base, marginBottom: Spacing.base, borderLeftWidth: 3, borderLeftColor: Colors.primary, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  earningsLabel: { fontSize: Typography.fontSize.xs, color: Colors.textSecondary, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  earningsAmount: { fontSize: Typography.fontSize.xxxl, fontWeight: '800', color: Colors.textPrimary, marginTop: 2 },
-  earningsRight: { alignItems: 'flex-end' },
-  earningsItems: { fontSize: Typography.fontSize.xs, color: Colors.textSecondary, marginTop: 4 },
-  filterRow: { paddingHorizontal: Spacing.base, marginBottom: Spacing.base, gap: Spacing.sm },
-  tabRow: { flexDirection: 'row', gap: Spacing.sm },
-  tab: { paddingHorizontal: Spacing.base, paddingVertical: 7, borderRadius: BorderRadius.pill, backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.cardBorder },
+  header: { minHeight: 54, flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.base },
+  headerSpacer: { width: 38 },
+  title: { flex: 1, textAlign: 'center', color: Colors.textPrimary, fontSize: Typography.fontSize.xl, fontWeight: '800' },
+  infoButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
+  content: { paddingHorizontal: Spacing.base },
+  sellerCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, borderRadius: BorderRadius.lg, backgroundColor: '#2B2928' },
+  sellerCardReady: { backgroundColor: '#214E3B' },
+  sellerIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary },
+  sellerCopy: { flex: 1 },
+  sellerTitle: { color: Colors.white, fontSize: Typography.fontSize.base, fontWeight: '800' },
+  sellerText: { marginTop: 2, color: Colors.lightGray, fontSize: Typography.fontSize.xs, lineHeight: 17 },
+  sellerButton: { minHeight: 38, justifyContent: 'center', paddingHorizontal: Spacing.md, borderRadius: BorderRadius.pill, backgroundColor: Colors.white },
+  sellerButtonText: { color: Colors.textPrimary, fontSize: Typography.fontSize.xs, fontWeight: '800' },
+  earningsCard: { marginTop: Spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.base, borderRadius: BorderRadius.lg, backgroundColor: Colors.white, borderLeftWidth: 3, borderLeftColor: Colors.primary },
+  earningsLabel: { color: Colors.textSecondary, fontSize: Typography.fontSize.xs, fontWeight: '800', letterSpacing: 0.7 },
+  earningsAmount: { marginTop: 2, color: Colors.textPrimary, fontSize: Typography.fontSize.xxl, fontWeight: '800' },
+  ordersButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: Spacing.md, borderRadius: BorderRadius.pill, backgroundColor: Colors.black },
+  ordersText: { color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: '800' },
+  quickActions: { marginTop: Spacing.md, flexDirection: 'row', gap: Spacing.sm },
+  marketButton: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: Spacing.sm, borderRadius: BorderRadius.pill, borderWidth: 1, borderColor: Colors.cardBorder, backgroundColor: Colors.white },
+  marketButtonText: { color: Colors.textPrimary, fontSize: Typography.fontSize.xs, fontWeight: '800' },
+  listButton: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: Spacing.sm, borderRadius: BorderRadius.pill, backgroundColor: Colors.primary },
+  listButtonText: { color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: '800' },
+  tabs: { marginTop: Spacing.lg, marginBottom: Spacing.md, flexDirection: 'row', gap: Spacing.sm },
+  tab: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: BorderRadius.pill, backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.cardBorder },
   activeTab: { backgroundColor: Colors.black, borderColor: Colors.black },
-  tabText: { fontSize: Typography.fontSize.sm, fontWeight: '600', color: Colors.textPrimary },
+  tabText: { color: Colors.textPrimary, fontSize: Typography.fontSize.xs, fontWeight: '800' },
   activeTabText: { color: Colors.white },
-  categoryActionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
-  categoryPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: Colors.black, borderRadius: BorderRadius.pill, paddingHorizontal: Spacing.base, paddingVertical: 7, gap: 6 },
-  categoryPillText: { color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: '600' },
-  headerListButton: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: Colors.primary, borderRadius: BorderRadius.pill, paddingHorizontal: Spacing.md, paddingVertical: 8 },
-  headerListButtonText: { color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: '800' },
-  list: { paddingHorizontal: Spacing.base },
-  sellCard: { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, marginBottom: Spacing.base, overflow: 'hidden', borderWidth: 1, borderColor: Colors.cardBorder, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
-  categoryLabel: { alignSelf: 'center', backgroundColor: Colors.black, borderRadius: BorderRadius.pill, paddingHorizontal: Spacing.base, paddingVertical: 4, marginTop: Spacing.md, marginBottom: Spacing.sm },
-  categoryLabelText: { color: Colors.white, fontSize: Typography.fontSize.xs, fontWeight: '700' },
-  itemCard: { backgroundColor: Colors.background, marginHorizontal: Spacing.base, borderRadius: BorderRadius.md, height: 140, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.cardBorder },
-  itemImage: { width: 100, height: 120 },
-  itemInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.base, paddingTop: Spacing.sm },
-  itemInfoLeft: { flex: 1 },
-  itemName: { fontSize: Typography.fontSize.sm, fontWeight: '700', color: Colors.textPrimary },
-  itemBrand: { fontSize: Typography.fontSize.xs, color: Colors.textSecondary, marginTop: 2 },
-  itemInfoRight: { alignItems: 'flex-end' },
-  salePrice: { fontSize: Typography.fontSize.md, fontWeight: '800', color: Colors.primary },
-  originalPrice: { fontSize: Typography.fontSize.xs, color: Colors.textSecondary, textDecorationLine: 'line-through' },
-  listingStatusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.base, paddingVertical: Spacing.md },
-  listingStatus: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  listingStatusText: { color: Colors.textSecondary, fontSize: Typography.fontSize.xs, fontWeight: '700' },
-  listingActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  storyShareButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: Spacing.sm, paddingVertical: 7, borderWidth: 1, borderColor: Colors.primary, borderRadius: BorderRadius.pill },
-  storyShareButtonText: { color: Colors.primary, fontSize: 10, fontWeight: '800' },
-  unlistButton: { paddingHorizontal: Spacing.md, paddingVertical: 7, borderWidth: 1, borderColor: Colors.cardBorder, borderRadius: BorderRadius.pill },
-  unlistButtonText: { color: Colors.textPrimary, fontSize: Typography.fontSize.xs, fontWeight: '700' },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xxxl },
-  emptyTitle: { fontSize: Typography.fontSize.lg, fontWeight: '700', color: Colors.textPrimary, marginTop: Spacing.base, marginBottom: Spacing.sm },
-  emptySubtitle: { fontSize: Typography.fontSize.sm, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, marginBottom: Spacing.xl },
-  listNewBtn: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, backgroundColor: Colors.primary, borderRadius: BorderRadius.pill, paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md },
-  listNewBtnText: { color: Colors.white, fontWeight: '700', fontSize: Typography.fontSize.sm },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' },
-  bottomSheet: { backgroundColor: Colors.white, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, paddingBottom: 40, maxHeight: '70%' },
-  bottomSheetHandle: { width: 40, height: 4, backgroundColor: Colors.cardBorder, borderRadius: 2, alignSelf: 'center', marginTop: Spacing.sm, marginBottom: Spacing.sm },
-  bottomSheetTitle: { fontSize: Typography.fontSize.md, fontWeight: '700', color: Colors.textPrimary, textAlign: 'center', paddingBottom: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder, marginHorizontal: Spacing.base, marginBottom: Spacing.xs },
-  categoryOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.md, paddingHorizontal: Spacing.xl },
-  categoryOptionActive: { backgroundColor: Colors.background },
-  categoryOptionText: { fontSize: Typography.fontSize.base, color: Colors.textPrimary, fontWeight: '500' },
-  categoryOptionTextActive: { color: Colors.primary, fontWeight: '700' },
-  separator: { height: 1, backgroundColor: Colors.cardBorder, marginHorizontal: Spacing.base },
+  listingCard: { minHeight: 150, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.md, padding: Spacing.md, borderRadius: BorderRadius.lg, backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.cardBorder },
+  listingImageFrame: { width: 88, height: 124, alignItems: 'center', justifyContent: 'center', borderRadius: BorderRadius.md, backgroundColor: Colors.background, overflow: 'hidden' },
+  listingImage: { width: '100%', height: '100%' },
+  listingCopy: { flex: 1, minWidth: 0 },
+  listingTitle: { color: Colors.textPrimary, fontSize: Typography.fontSize.base, fontWeight: '800', lineHeight: 20 },
+  listingMeta: { marginTop: 3, color: Colors.textSecondary, fontSize: Typography.fontSize.xs },
+  listingPrice: { marginTop: 7, color: Colors.primaryDark, fontSize: Typography.fontSize.md, fontWeight: '800' },
+  listingShipping: { marginTop: 2, color: Colors.textSecondary, fontSize: 10 },
+  listingActions: { alignItems: 'flex-end', gap: Spacing.sm },
+  shareButton: { minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: Spacing.sm, borderRadius: BorderRadius.pill, borderWidth: 1, borderColor: Colors.primary },
+  shareText: { color: Colors.primary, fontSize: Typography.fontSize.xs, fontWeight: '800' },
+  archiveButton: { minHeight: 34, justifyContent: 'center', paddingHorizontal: Spacing.sm },
+  archiveText: { color: Colors.textSecondary, fontSize: Typography.fontSize.xs, fontWeight: '700' },
+  reservedText: { maxWidth: 84, color: Colors.primaryDark, fontSize: 10, fontWeight: '800', textAlign: 'right' },
+  emptyState: { alignItems: 'center', paddingTop: Spacing.xxl, paddingHorizontal: Spacing.xl },
+  emptyTitle: { marginTop: Spacing.md, color: Colors.textPrimary, fontSize: Typography.fontSize.lg, fontWeight: '800' },
+  emptyText: { marginTop: Spacing.sm, color: Colors.textSecondary, fontSize: Typography.fontSize.sm, lineHeight: 20, textAlign: 'center' },
 });

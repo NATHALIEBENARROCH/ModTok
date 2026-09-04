@@ -14,16 +14,13 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
 import { ClothingItem, useCloset } from '../context/ClosetContext';
+import { useMarketplace } from '../context/MarketplaceContext';
+import { CONDITION_LABELS, ListingCondition } from '../types/marketplace';
 
-type ListingType = 'sale' | 'rent';
-
-type SellCategory = {
-  name: string;
-  icon: keyof typeof Ionicons.glyphMap;
-};
+type SellCategory = { name: string; icon: keyof typeof Ionicons.glyphMap };
 
 const SELL_CATEGORIES: SellCategory[] = [
   { name: 'Dresses', icon: 'woman-outline' },
@@ -46,20 +43,25 @@ function itemImage(item: ClothingItem) {
 
 export default function SellItemPickerScreen() {
   const navigation = useNavigation<any>();
-  const route = useRoute<any>();
-  const { items, updateItem } = useCloset();
-  const initialType: ListingType = route.params?.listingType === 'rent' ? 'rent' : 'sale';
-
+  const { items } = useCloset();
+  const { createListing, myListings, sellerStatus } = useMarketplace();
   const [step, setStep] = useState<'category' | 'item' | 'details'>('category');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<ClothingItem | null>(null);
-  const [listingType, setListingType] = useState<ListingType>(initialType);
   const [listingPrice, setListingPrice] = useState('');
+  const [shippingPrice, setShippingPrice] = useState('');
+  const [description, setDescription] = useState('');
+  const [condition, setCondition] = useState<ListingCondition>('good');
   const [saving, setSaving] = useState(false);
 
+  const sellerReady = sellerStatus.details_submitted && sellerStatus.charges_enabled && sellerStatus.payouts_enabled;
+  const openItemIds = useMemo(
+    () => new Set(myListings.filter((listing) => ['draft', 'active', 'reserved'].includes(listing.status)).map((listing) => listing.closet_item_id)),
+    [myListings],
+  );
   const categoryItems = useMemo(
-    () => selectedCategory ? items.filter((item) => item.category === selectedCategory) : [],
-    [items, selectedCategory],
+    () => selectedCategory ? items.filter((item) => item.category === selectedCategory && !openItemIds.has(item.id)) : [],
+    [items, openItemIds, selectedCategory],
   );
 
   const chooseCategory = (category: string) => {
@@ -70,63 +72,68 @@ export default function SellItemPickerScreen() {
   const chooseItem = (item: ClothingItem) => {
     setSelectedItem(item);
     setListingPrice(item.salePrice ? String(item.salePrice) : '');
-    setListingType(item.listingType === 'rent' ? 'rent' : initialType);
+    setDescription(item.notes ?? '');
     setStep('details');
   };
 
   const saveListing = async () => {
     if (!selectedItem) return;
     const price = Number(listingPrice.replace(',', '.'));
-    if (!Number.isFinite(price) || price <= 0) {
-      Alert.alert('Add a price', `Enter a price greater than $0 to list this item for ${listingType === 'rent' ? 'rent' : 'sale'}.`);
+    const shipping = shippingPrice.trim() ? Number(shippingPrice.replace(',', '.')) : 0;
+    const imageUrl = itemImage(selectedItem);
+    if (!sellerReady) {
+      Alert.alert('Complete seller setup', 'Connect your Stripe payout account on the Sell page before publishing an item.');
+      return;
+    }
+    if (!imageUrl) {
+      Alert.alert('Add a photo', 'This wardrobe item needs a photo before it can be listed.');
+      return;
+    }
+    if (!Number.isFinite(price) || price < 1) {
+      Alert.alert('Add a price', 'Enter a sale price of at least $1.00 USD.');
+      return;
+    }
+    if (!Number.isFinite(shipping) || shipping < 0) {
+      Alert.alert('Check shipping price', 'Shipping must be $0 or more.');
       return;
     }
 
     setSaving(true);
     try {
-      const updated = await updateItem(selectedItem.id, {
-        forSale: true,
-        salePrice: price,
-        listingType,
+      await createListing({
+        closet_item_id: selectedItem.id,
+        title: selectedItem.name,
+        description: description.trim(),
+        category: selectedItem.category,
+        brand: selectedItem.brand,
+        size: selectedItem.size,
+        condition,
+        image_urls: [imageUrl],
+        price_cents: Math.round(price * 100),
+        shipping_price_cents: Math.round(shipping * 100),
       });
-      if (!updated) {
-        Alert.alert('Could not list item', 'Please run the marketplace database repair, then try again.');
-        return;
-      }
-      Alert.alert(
-        listingType === 'rent' ? 'Listed for rent' : 'Listed for sale',
-        `${selectedItem.name} is now listed on your Sell page.`,
-        [{ text: 'Done', onPress: () => navigation.goBack() }],
-      );
+      Alert.alert('Listing is live', `${selectedItem.name} is now available in the ModTok marketplace.`, [
+        { text: 'Done', onPress: () => navigation.goBack() },
+      ]);
+    } catch (error: any) {
+      Alert.alert('Could not publish listing', error?.message ?? 'Please try again.');
     } finally {
       setSaving(false);
     }
   };
 
   const goBack = () => {
-    if (step === 'details') {
-      setStep('item');
-      return;
-    }
-    if (step === 'item') {
-      setStep('category');
-      return;
-    }
+    if (step === 'details') return setStep('item');
+    if (step === 'item') return setStep('category');
     navigation.goBack();
   };
 
-  const title = step === 'category'
-    ? 'Choose a category'
-    : step === 'item'
-      ? `Choose a ${selectedCategory ?? 'piece'}`
-      : 'Create listing';
+  const title = step === 'category' ? 'Choose a category' : step === 'item' ? `Choose a ${selectedCategory ?? 'piece'}` : 'Create listing';
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={goBack}>
-          <Ionicons name="chevron-back" size={25} color={Colors.textPrimary} />
-        </TouchableOpacity>
+        <TouchableOpacity style={styles.backButton} onPress={goBack}><Ionicons name="chevron-back" size={25} color={Colors.textPrimary} /></TouchableOpacity>
         <Text style={styles.headerTitle}>{title}</Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -134,29 +141,23 @@ export default function SellItemPickerScreen() {
       {step === 'category' && (
         <FlatList
           data={SELL_CATEGORIES}
-          keyExtractor={(category) => category.name}
+          keyExtractor={(item) => item.name}
           numColumns={2}
           contentContainerStyle={styles.categoryList}
           columnWrapperStyle={styles.categoryRow}
           ListHeaderComponent={
             <View style={styles.introBlock}>
-              <Text style={styles.introTitle}>What would you like to list?</Text>
-              <Text style={styles.introText}>Start with a category, then choose the piece from your wardrobe.</Text>
+              <Text style={styles.introTitle}>What would you like to sell?</Text>
+              <Text style={styles.introText}>Choose a category, then select the exact piece from your wardrobe.</Text>
             </View>
           }
           renderItem={({ item: category }) => {
-            const count = items.filter((closetItem) => closetItem.category === category.name).length;
+            const count = items.filter((closetItem) => closetItem.category === category.name && !openItemIds.has(closetItem.id)).length;
             return (
-              <TouchableOpacity
-                style={styles.categoryCard}
-                onPress={() => chooseCategory(category.name)}
-                activeOpacity={0.82}
-              >
-                <View style={styles.categoryIconCircle}>
-                  <Ionicons name={category.icon} size={25} color={Colors.primary} />
-                </View>
+              <TouchableOpacity style={styles.categoryCard} onPress={() => chooseCategory(category.name)} activeOpacity={0.82}>
+                <View style={styles.categoryIconCircle}><Ionicons name={category.icon} size={25} color={Colors.primary} /></View>
                 <Text style={styles.categoryName}>{category.name}</Text>
-                <Text style={styles.categoryCount}>{count === 1 ? '1 piece' : `${count} pieces`}</Text>
+                <Text style={styles.categoryCount}>{count === 1 ? '1 available piece' : `${count} available pieces`}</Text>
                 <Ionicons name="chevron-forward" size={17} color={Colors.textSecondary} style={styles.categoryArrow} />
               </TouchableOpacity>
             );
@@ -171,32 +172,12 @@ export default function SellItemPickerScreen() {
           data={categoryItems}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.itemList}
-          ListHeaderComponent={
-            <View style={styles.introBlock}>
-              <Text style={styles.introTitle}>Your {selectedCategory}</Text>
-              <Text style={styles.introText}>Tap the exact piece you want to list.</Text>
-            </View>
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Ionicons name="shirt-outline" size={48} color={Colors.mediumGray} />
-              <Text style={styles.emptyTitle}>No {selectedCategory} yet</Text>
-              <Text style={styles.emptyText}>Choose another category or add this piece to your wardrobe first.</Text>
-              <TouchableOpacity style={styles.chooseAnotherButton} onPress={() => setStep('category')}>
-                <Text style={styles.chooseAnotherText}>Choose another category</Text>
-              </TouchableOpacity>
-            </View>
-          }
+          ListHeaderComponent={<View style={styles.introBlock}><Text style={styles.introTitle}>Your {selectedCategory}</Text><Text style={styles.introText}>Already-listed pieces are hidden here.</Text></View>}
+          ListEmptyComponent={<View style={styles.emptyState}><Ionicons name="shirt-outline" size={48} color={Colors.mediumGray} /><Text style={styles.emptyTitle}>No available {selectedCategory}</Text><Text style={styles.emptyText}>Choose another category or add a piece to your wardrobe first.</Text><TouchableOpacity style={styles.chooseAnotherButton} onPress={() => setStep('category')}><Text style={styles.chooseAnotherText}>Choose another category</Text></TouchableOpacity></View>}
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.itemRow} onPress={() => chooseItem(item)} activeOpacity={0.82}>
               <Image source={{ uri: itemImage(item) }} style={styles.itemImage} resizeMode="contain" />
-              <View style={styles.itemCopy}>
-                <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-                <Text style={styles.itemMeta} numberOfLines={1}>
-                  {item.category}{item.color ? ` · ${item.color}` : ''}
-                </Text>
-                {item.brand ? <Text style={styles.itemBrand} numberOfLines={1}>{item.brand}</Text> : null}
-              </View>
+              <View style={styles.itemCopy}><Text style={styles.itemName} numberOfLines={1}>{item.name}</Text><Text style={styles.itemMeta} numberOfLines={1}>{item.category}{item.color ? ` · ${item.color}` : ''}</Text>{item.brand ? <Text style={styles.itemBrand} numberOfLines={1}>{item.brand}</Text> : null}</View>
               <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
             </TouchableOpacity>
           )}
@@ -211,56 +192,33 @@ export default function SellItemPickerScreen() {
           <ScrollView contentContainerStyle={styles.detailsContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={styles.selectedItemCard}>
               <Image source={{ uri: itemImage(selectedItem) }} style={styles.selectedImage} resizeMode="contain" />
-              <View style={styles.selectedItemCopy}>
-                <Text style={styles.selectedItemName}>{selectedItem.name}</Text>
-                <Text style={styles.selectedItemMeta}>{selectedItem.category}{selectedItem.color ? ` · ${selectedItem.color}` : ''}</Text>
-              </View>
+              <View style={styles.selectedItemCopy}><Text style={styles.selectedItemName}>{selectedItem.name}</Text><Text style={styles.selectedItemMeta}>{selectedItem.category}{selectedItem.color ? ` · ${selectedItem.color}` : ''}</Text></View>
             </View>
 
-            <Text style={styles.fieldLabel}>LISTING TYPE</Text>
-            <View style={styles.typeToggle}>
-              {(['sale', 'rent'] as ListingType[]).map((type) => {
-                const active = listingType === type;
-                return (
-                  <TouchableOpacity
-                    key={type}
-                    style={[styles.typeOption, active && styles.typeOptionActive]}
-                    onPress={() => setListingType(type)}
-                  >
-                    <Ionicons name={type === 'sale' ? 'pricetag-outline' : 'calendar-outline'} size={17} color={active ? Colors.white : Colors.textPrimary} />
-                    <Text style={[styles.typeOptionText, active && styles.typeOptionTextActive]}>{type === 'sale' ? 'Sell' : 'Rent'}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+            <Text style={styles.fieldLabel}>CONDITION</Text>
+            <View style={styles.conditionGrid}>
+              {(Object.keys(CONDITION_LABELS) as ListingCondition[]).map((value) => (
+                <TouchableOpacity key={value} style={[styles.conditionButton, condition === value && styles.conditionButtonActive]} onPress={() => setCondition(value)}>
+                  <Text style={[styles.conditionText, condition === value && styles.conditionTextActive]}>{CONDITION_LABELS[value]}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
 
-            <Text style={styles.fieldLabel}>{listingType === 'rent' ? 'RENTAL PRICE' : 'ASKING PRICE'}</Text>
-            <View style={styles.priceField}>
-              <Text style={styles.priceSymbol}>$</Text>
-              <TextInput
-                style={styles.priceInput}
-                placeholder="0.00"
-                placeholderTextColor={Colors.mediumGray}
-                keyboardType="decimal-pad"
-                value={listingPrice}
-                onChangeText={setListingPrice}
-                returnKeyType="done"
-              />
-              {listingType === 'rent' && <Text style={styles.priceSuffix}>per day</Text>}
-            </View>
-            <Text style={styles.priceHint}>
-              {listingType === 'rent' ? 'You can adjust the rental terms later.' : 'You can change or unlist this item any time.'}
-            </Text>
+            <Text style={styles.fieldLabel}>DESCRIPTION</Text>
+            <TextInput style={[styles.input, styles.descriptionInput]} multiline value={description} onChangeText={setDescription} placeholder="Describe condition, fit, materials, or anything the buyer should know." placeholderTextColor={Colors.mediumGray} textAlignVertical="top" maxLength={2000} />
+
+            <Text style={styles.fieldLabel}>SALE PRICE (USD)</Text>
+            <View style={styles.priceField}><Text style={styles.priceSymbol}>$</Text><TextInput style={styles.priceInput} placeholder="0.00" placeholderTextColor={Colors.mediumGray} keyboardType="decimal-pad" value={listingPrice} onChangeText={setListingPrice} returnKeyType="done" /></View>
+
+            <Text style={styles.fieldLabel}>SHIPPING PRICE (USD)</Text>
+            <View style={styles.priceField}><Text style={styles.priceSymbol}>$</Text><TextInput style={styles.priceInput} placeholder="0.00 for free shipping" placeholderTextColor={Colors.mediumGray} keyboardType="decimal-pad" value={shippingPrice} onChangeText={setShippingPrice} returnKeyType="done" /></View>
+            <Text style={styles.priceHint}>The buyer sees one total in USD. You will add carrier and tracking after the sale.</Text>
+            <View style={{ height: 20 }} />
           </ScrollView>
 
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.cancelButton} onPress={goBack} disabled={saving}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.saveButton, saving && styles.saveButtonDisabled]} onPress={saveListing} disabled={saving}>
-              <Ionicons name="checkmark" size={19} color={Colors.white} />
-              <Text style={styles.saveButtonText}>{saving ? 'Listing...' : listingType === 'rent' ? 'List for rent' : 'List for sale'}</Text>
-            </TouchableOpacity>
+            <TouchableOpacity style={styles.cancelButton} onPress={goBack} disabled={saving}><Text style={styles.cancelButtonText}>Cancel</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.saveButton, saving && styles.saveButtonDisabled]} onPress={saveListing} disabled={saving}><Ionicons name="checkmark" size={19} color={Colors.white} /><Text style={styles.saveButtonText}>{saving ? 'Publishing...' : 'List for sale'}</Text></TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
       )}
@@ -270,11 +228,7 @@ export default function SellItemPickerScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.base,
-    paddingTop: Spacing.sm, paddingBottom: Spacing.sm, backgroundColor: Colors.white,
-    borderBottomWidth: 1, borderBottomColor: Colors.cardBorder,
-  },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.base, paddingTop: Spacing.sm, paddingBottom: Spacing.sm, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder },
   backButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, textAlign: 'center', color: Colors.textPrimary, fontSize: Typography.fontSize.lg, fontWeight: '800' },
   headerSpacer: { width: 42 },
@@ -283,19 +237,13 @@ const styles = StyleSheet.create({
   introText: { color: Colors.textSecondary, fontSize: Typography.fontSize.sm, textAlign: 'center', marginTop: Spacing.xs, lineHeight: 20 },
   categoryList: { paddingHorizontal: Spacing.base },
   categoryRow: { gap: Spacing.sm },
-  categoryCard: {
-    flex: 1, minHeight: 132, backgroundColor: Colors.white, borderRadius: BorderRadius.lg,
-    borderWidth: 1, borderColor: Colors.cardBorder, padding: Spacing.base, marginBottom: Spacing.sm,
-  },
+  categoryCard: { flex: 1, minHeight: 132, backgroundColor: Colors.white, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.cardBorder, padding: Spacing.base, marginBottom: Spacing.sm },
   categoryIconCircle: { width: 45, height: 45, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9E5E1' },
   categoryName: { marginTop: Spacing.sm, color: Colors.textPrimary, fontSize: Typography.fontSize.base, fontWeight: '800' },
   categoryCount: { marginTop: 2, color: Colors.textSecondary, fontSize: Typography.fontSize.xs, fontWeight: '500' },
   categoryArrow: { position: 'absolute', right: Spacing.base, bottom: Spacing.base },
   itemList: { paddingHorizontal: Spacing.base },
-  itemRow: {
-    minHeight: 86, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.sm,
-    backgroundColor: Colors.white, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.cardBorder,
-  },
+  itemRow: { minHeight: 86, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.sm, backgroundColor: Colors.white, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.cardBorder },
   itemImage: { width: 62, height: 70, borderRadius: BorderRadius.sm, backgroundColor: '#FFFDF9' },
   itemCopy: { flex: 1 },
   itemName: { color: Colors.textPrimary, fontSize: Typography.fontSize.base, fontWeight: '800' },
@@ -309,20 +257,21 @@ const styles = StyleSheet.create({
   detailsKeyboard: { flex: 1 },
   detailsContent: { padding: Spacing.base, paddingBottom: Spacing.lg },
   selectedItemCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, backgroundColor: Colors.white, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.cardBorder },
-  selectedImage: { width: 74, height: 86, borderRadius: BorderRadius.sm, backgroundColor: '#FFFDF9' },
+  selectedImage: { width: 74, height: 94, borderRadius: BorderRadius.sm, backgroundColor: '#FFFDF9' },
   selectedItemCopy: { flex: 1 },
   selectedItemName: { color: Colors.textPrimary, fontSize: Typography.fontSize.lg, fontWeight: '800' },
   selectedItemMeta: { marginTop: 4, color: Colors.textSecondary, fontSize: Typography.fontSize.sm, fontWeight: '600' },
   fieldLabel: { marginTop: Spacing.lg, marginBottom: Spacing.sm, color: Colors.textSecondary, fontSize: Typography.fontSize.xs, fontWeight: '800', letterSpacing: 0.6 },
-  typeToggle: { flexDirection: 'row', gap: Spacing.sm },
-  typeOption: { flex: 1, minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, backgroundColor: Colors.white, borderRadius: BorderRadius.pill, borderWidth: 1, borderColor: Colors.cardBorder },
-  typeOptionActive: { backgroundColor: Colors.black, borderColor: Colors.black },
-  typeOptionText: { color: Colors.textPrimary, fontSize: Typography.fontSize.base, fontWeight: '700' },
-  typeOptionTextActive: { color: Colors.white },
+  conditionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  conditionButton: { minHeight: 42, justifyContent: 'center', paddingHorizontal: Spacing.md, borderRadius: BorderRadius.pill, borderWidth: 1, borderColor: Colors.cardBorder, backgroundColor: Colors.white },
+  conditionButtonActive: { backgroundColor: Colors.black, borderColor: Colors.black },
+  conditionText: { color: Colors.textPrimary, fontSize: Typography.fontSize.sm, fontWeight: '700' },
+  conditionTextActive: { color: Colors.white },
+  input: { minHeight: 52, paddingHorizontal: Spacing.md, color: Colors.textPrimary, fontSize: Typography.fontSize.base, backgroundColor: Colors.white, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.cardBorder },
+  descriptionInput: { minHeight: 110, paddingTop: Spacing.md, paddingBottom: Spacing.md },
   priceField: { flexDirection: 'row', alignItems: 'center', minHeight: 55, paddingHorizontal: Spacing.base, backgroundColor: Colors.white, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.cardBorder },
   priceSymbol: { color: Colors.textPrimary, fontSize: Typography.fontSize.lg, fontWeight: '800', marginRight: Spacing.xs },
   priceInput: { flex: 1, color: Colors.textPrimary, fontSize: Typography.fontSize.lg, fontWeight: '700', paddingVertical: Spacing.sm },
-  priceSuffix: { color: Colors.textSecondary, fontSize: Typography.fontSize.sm, fontWeight: '600' },
   priceHint: { marginTop: Spacing.sm, color: Colors.textSecondary, fontSize: Typography.fontSize.xs, lineHeight: 18 },
   footer: { flexDirection: 'row', gap: Spacing.sm, paddingHorizontal: Spacing.base, paddingTop: Spacing.sm, paddingBottom: Spacing.base, backgroundColor: Colors.white, borderTopWidth: 1, borderTopColor: Colors.cardBorder },
   cancelButton: { flex: 0.85, minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: BorderRadius.pill, borderWidth: 1.5, borderColor: Colors.cardBorder },

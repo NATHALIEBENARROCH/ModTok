@@ -9,6 +9,7 @@ import {
   Switch,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
@@ -45,6 +46,44 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [privateAccount, setPrivateAccount] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  const deleteAccount = () => {
+    Alert.alert(
+      'Delete your ModTok account?',
+      'This permanently removes your profile, wardrobe, outfits, and listings. Completed transaction records may be retained where legally required. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Account',
+          style: 'destructive',
+          onPress: () => Alert.alert(
+            'Final confirmation',
+            'Are you certain you want to permanently delete your account?',
+            [
+              { text: 'Keep Account', style: 'cancel' },
+              {
+                text: 'Delete Permanently',
+                style: 'destructive',
+                onPress: async () => {
+                  try {
+                    setDeletingAccount(true);
+                    const { data, error } = await supabase.functions.invoke('delete-account', { body: {} });
+                    if (error || !data?.deleted) throw new Error(error?.context?.body?.error || error?.message || 'Account could not be deleted.');
+                    await supabase.auth.signOut();
+                  } catch (error: any) {
+                    Alert.alert('Account not deleted', error?.message ?? 'Please try again or contact support.');
+                  } finally {
+                    setDeletingAccount(false);
+                  }
+                },
+              },
+            ],
+          ),
+        },
+      ],
+    );
+  };
 
   const sections: SettingsSection[] = [
     {
@@ -54,6 +93,11 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           icon: 'person-circle-outline',
           label: 'Edit profile',
           onPress: () => navigation.navigate('EditProfile'),
+        },
+        {
+          icon: 'receipt-outline',
+          label: 'Purchases and sales',
+          onPress: () => navigation.navigate('Orders'),
         },
         {
           icon: 'notifications-outline',
@@ -101,6 +145,17 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           label: 'Appearance',
           onPress: () => {},
           value: 'Light',
+        },
+      ],
+    },
+    {
+      title: 'Account',
+      items: [
+        {
+          icon: 'trash-outline',
+          label: deletingAccount ? 'Deleting account...' : 'Delete my account',
+          subtitle: 'Permanently remove your ModTok account',
+          onPress: deleteAccount,
         },
       ],
     },
@@ -153,7 +208,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} pointerEvents={deletingAccount ? 'none' : 'auto'}>
         {/* Search */}
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={16} color={Colors.mediumGray} style={styles.searchIcon} />
@@ -226,6 +281,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
 
+        {deletingAccount && <ActivityIndicator color={Colors.primary} style={{ marginTop: Spacing.base }} />}
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>

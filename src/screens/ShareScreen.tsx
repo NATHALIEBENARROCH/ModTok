@@ -18,6 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
 import { ShareStory, useOutfit } from '../context/OutfitContext';
 import { useCloset } from '../context/ClosetContext';
+import { useMarketplace } from '../context/MarketplaceContext';
+import { formatUsd } from '../types/marketplace';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
 
@@ -32,8 +34,9 @@ function displayName(story: ShareStory, own: boolean) {
 
 export default function ShareScreen({ route }: { route?: any }) {
   const navigation = useNavigation<any>();
-  const { outfits, shareStories, createShareStory } = useOutfit();
+  const { outfits, shareStories, createShareStory, loadShareStories } = useOutfit();
   const { items } = useCloset();
+  const { myListings, blockSeller } = useMarketplace();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [creatorVisible, setCreatorVisible] = useState(false);
   const [viewerStory, setViewerStory] = useState<ShareStory | null>(null);
@@ -61,7 +64,7 @@ export default function ShareScreen({ route }: { route?: any }) {
 
   const ownStory = latestStoriesByUser.find((story) => story.user_id === currentUserId) ?? null;
   const communityStories = latestStoriesByUser.filter((story) => story.user_id !== currentUserId);
-  const listedItems = items.filter((item) => item.forSale);
+  const listedItems = myListings.filter((listing) => listing.status === 'active');
   const selectedOutfit = outfits.find((outfit) => outfit.id === selectedOutfitId) ?? null;
   const selectedOutfitItems = selectedOutfit
     ? selectedOutfit.item_ids.map((id) => items.find((item) => item.id === id)).filter(Boolean)
@@ -79,6 +82,57 @@ export default function ShareScreen({ route }: { route?: any }) {
     setTaggedItemId(null);
     setCaption('');
     setCreatorVisible(true);
+  };
+
+  const reportStory = (story: ShareStory) => {
+    const submit = async (reason: string) => {
+      if (!currentUserId) return;
+      try {
+        const { error } = await supabase.from('marketplace_reports').insert({
+          reporter_id: currentUserId,
+          target_type: 'story',
+          target_id: story.id,
+          reason,
+        });
+        if (error) throw error;
+        Alert.alert('Report received', 'Thank you. ModTok will review this story.');
+      } catch (error: any) {
+        Alert.alert('Could not report story', error?.message ?? 'Please try again.');
+      }
+    };
+    Alert.alert('Report this story', 'Why are you reporting it?', [
+      { text: 'Spam', onPress: () => submit('spam') },
+      { text: 'Harassment', onPress: () => submit('harassment') },
+      { text: 'Inappropriate', onPress: () => submit('inappropriate') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const showStoryOptions = (story: ShareStory) => {
+    Alert.alert('Story options', undefined, [
+      { text: 'Report story', onPress: () => reportStory(story) },
+      {
+        text: 'Block this user',
+        style: 'destructive',
+        onPress: () => Alert.alert('Block this user?', 'Their stories and listings will no longer appear for you.', [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Block',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await blockSeller(story.user_id);
+                setViewerStory(null);
+                await loadShareStories();
+              } catch (error: any) {
+                Alert.alert('Could not block user', error?.message ?? 'Please try again.');
+              }
+            },
+          },
+        ]),
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   useEffect(() => {
@@ -109,9 +163,10 @@ export default function ShareScreen({ route }: { route?: any }) {
         outfit_id: selectedOutfit.id,
         caption: caption.trim(),
         image_urls: imageUrls,
-        tagged_item_id: taggedItem?.id ?? null,
-        tagged_item_name: taggedItem?.name ?? null,
-        tagged_item_price: taggedItem?.salePrice ?? null,
+        tagged_item_id: taggedItem?.closet_item_id ?? null,
+        tagged_listing_id: taggedItem?.id ?? null,
+        tagged_item_name: taggedItem?.title ?? null,
+        tagged_item_price: taggedItem ? taggedItem.price_cents / 100 : null,
       });
       if (!created) {
         Alert.alert('Could not share story', 'Please sign in and try again.');
@@ -263,7 +318,7 @@ export default function ShareScreen({ route }: { route?: any }) {
                 const active = taggedItemId === item.id;
                 return (
                   <TouchableOpacity key={item.id} style={[styles.tagChoice, active && styles.tagChoiceActive]} onPress={() => setTaggedItemId(item.id)}>
-                    <Text style={[styles.tagChoiceText, active && styles.tagChoiceTextActive]}>{item.name}{item.salePrice ? ` · $${item.salePrice}` : ''}</Text>
+                    <Text style={[styles.tagChoiceText, active && styles.tagChoiceTextActive]}>{item.title} · {formatUsd(item.price_cents)}</Text>
                     {active && <Ionicons name="checkmark" size={16} color={Colors.white} />}
                   </TouchableOpacity>
                 );
@@ -294,6 +349,11 @@ export default function ShareScreen({ route }: { route?: any }) {
                 </View>
                 <Text style={styles.viewerName}>{viewerStory?.user_id === currentUserId ? 'Your Story' : 'Style Story'}</Text>
               </View>
+              {viewerStory && viewerStory.user_id !== currentUserId ? (
+                <TouchableOpacity style={styles.viewerOptionsButton} onPress={() => showStoryOptions(viewerStory)}>
+                  <Ionicons name="ellipsis-horizontal" size={22} color={Colors.white} />
+                </TouchableOpacity>
+              ) : <View style={styles.viewerOptionsButton} />}
             </View>
             <View style={styles.viewerContent}>
               <View style={styles.viewerGrid}>
@@ -301,10 +361,20 @@ export default function ShareScreen({ route }: { route?: any }) {
               </View>
               {!!viewerStory?.caption && <Text style={styles.viewerCaption}>{viewerStory.caption}</Text>}
               {!!viewerStory?.tagged_item_name && (
-                <View style={styles.storyTag}>
+                <TouchableOpacity
+                  style={styles.storyTag}
+                  disabled={!viewerStory.tagged_listing_id}
+                  onPress={() => {
+                    if (!viewerStory.tagged_listing_id) return;
+                    const listingId = viewerStory.tagged_listing_id;
+                    setViewerStory(null);
+                    navigation.navigate('ProductDetail', { listingId });
+                  }}
+                >
                   <Ionicons name="pricetag" size={16} color={Colors.primary} />
-                  <Text style={styles.storyTagText}>{viewerStory.tagged_item_name}{viewerStory.tagged_item_price ? ` · $${viewerStory.tagged_item_price}` : ''}</Text>
-                </View>
+                  <Text style={styles.storyTagText}>{viewerStory.tagged_item_name}{viewerStory.tagged_item_price ? ` · $${viewerStory.tagged_item_price.toFixed(2)}` : ''}</Text>
+                  {!!viewerStory.tagged_listing_id && <Ionicons name="chevron-forward" size={16} color={Colors.primary} />}
+                </TouchableOpacity>
               )}
             </View>
             <View style={styles.viewerFooter}>
@@ -380,11 +450,12 @@ const styles = StyleSheet.create({
   shareButtonText: { color: Colors.white, fontSize: Typography.fontSize.base, fontWeight: '800' },
   viewerRoot: { flex: 1, backgroundColor: Colors.black },
   viewerSafeArea: { flex: 1 },
-  viewerTopBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.base, paddingTop: Spacing.sm },
+  viewerTopBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.base, paddingTop: Spacing.sm },
   viewerIdentity: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   viewerMiniRing: { width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   viewerMiniAvatar: { width: '100%', height: '100%' },
   viewerName: { color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: '800' },
+  viewerOptionsButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   viewerFooter: { paddingHorizontal: Spacing.base, paddingTop: Spacing.sm, paddingBottom: Spacing.base },
   viewerCloseButton: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, backgroundColor: Colors.primary, borderRadius: BorderRadius.pill },
   viewerCloseButtonText: { color: Colors.white, fontSize: Typography.fontSize.base, fontWeight: '800' },

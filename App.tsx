@@ -10,6 +10,7 @@ import SignInScreen from "./src/screens/SignInScreen";
 import ResetPasswordScreen from "./src/screens/ResetPasswordScreen";
 import { ClosetProvider } from "./src/context/ClosetContext";
 import { OutfitProvider } from "./src/context/OutfitContext";
+import { MarketplaceProvider } from "./src/context/MarketplaceContext";
 import { Colors } from "./src/theme";
 import ModTokLogo from "./src/components/ModTokLogo";
 import { supabase } from "./src/lib/supabase";
@@ -110,8 +111,10 @@ export default function App() {
       <SafeAreaProvider>
         <ClosetProvider>
           <OutfitProvider>
-            <StatusBar style="dark" backgroundColor={Colors.background} />
-            <AppContent />
+            <MarketplaceProvider>
+              <StatusBar style="dark" backgroundColor={Colors.background} />
+              <AppContent />
+            </MarketplaceProvider>
           </OutfitProvider>
         </ClosetProvider>
       </SafeAreaProvider>

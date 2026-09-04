@@ -19,8 +19,8 @@ import { Colors, Spacing, BorderRadius, Typography } from "../theme";
 import { useCloset } from "../context/ClosetContext";
 
 const CATEGORIES = [
-  'All', 'Coats', 'Jackets', 'Cardigans', 'Sweaters', 'Blouses',
-  'T shirts', 'Dresses', 'Pants', 'Skirts', 'Shorts', 'Shoes', 'Bags', 'Accessories', 'Activewear',
+  'All', 'Coats', 'Jackets', 'Cardigans', 'Sweaters', 'Tops', 'Blouses',
+  'T shirts', 'Dresses', 'Pants', 'Skirts', 'Shorts', 'Shoes', 'Boots', 'Sneakers', 'Bags', 'Jewelry', 'Accessories', 'Activewear',
 ];
 
 export default function ClosetBrowseScreen() {

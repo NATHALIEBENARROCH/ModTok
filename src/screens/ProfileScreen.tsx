@@ -14,10 +14,12 @@ import { Colors, Spacing, BorderRadius, Typography } from '../theme';
 import { supabase } from '../lib/supabase';
 import { useCloset } from '../context/ClosetContext';
 import { ShareStory, useOutfit } from '../context/OutfitContext';
+import { useMarketplace } from '../context/MarketplaceContext';
 
 export default function ProfileScreen({ navigation }: { navigation: any }) {
   const { items, totalItems } = useCloset();
   const { outfits, shareStories } = useOutfit();
+  const { purchases, sales } = useMarketplace();
   const [userEmail, setUserEmail] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
   const [viewerStory, setViewerStory] = useState<ShareStory | null>(null);
@@ -112,6 +114,24 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
           </View>
         </View>
 
+        <View style={styles.marketActions}>
+          <TouchableOpacity style={styles.marketAction} onPress={() => navigation.navigate('Marketplace')}>
+            <Ionicons name="bag-handle-outline" size={20} color={Colors.primary} />
+            <Text style={styles.marketActionValue}>Shop</Text>
+            <Text style={styles.marketActionLabel}>Marketplace</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.marketAction} onPress={() => navigation.navigate('Orders', { initialTab: 'Purchases' })}>
+            <Ionicons name="receipt-outline" size={20} color={Colors.primary} />
+            <Text style={styles.marketActionValue}>{purchases.length}</Text>
+            <Text style={styles.marketActionLabel}>Purchases</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.marketAction} onPress={() => navigation.navigate('Orders', { initialTab: 'Sales' })}>
+            <Ionicons name="cube-outline" size={20} color={Colors.primary} />
+            <Text style={styles.marketActionValue}>{sales.length}</Text>
+            <Text style={styles.marketActionLabel}>Sales</Text>
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.premiumBanner}>
           <Ionicons name="sparkles" size={18} color={Colors.primary} />
           <View style={styles.premiumText}>
@@ -185,10 +205,20 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
               </View>
               {!!viewerStory?.caption && <Text style={styles.storyCaption}>{viewerStory.caption}</Text>}
               {!!viewerStory?.tagged_item_name && (
-                <View style={styles.storyTag}>
+                <TouchableOpacity
+                  style={styles.storyTag}
+                  disabled={!viewerStory.tagged_listing_id}
+                  onPress={() => {
+                    if (!viewerStory.tagged_listing_id) return;
+                    const listingId = viewerStory.tagged_listing_id;
+                    setViewerStory(null);
+                    navigation.navigate('ProductDetail', { listingId });
+                  }}
+                >
                   <Ionicons name="pricetag" size={16} color={Colors.primary} />
-                  <Text style={styles.storyTagText}>{viewerStory.tagged_item_name}{viewerStory.tagged_item_price ? ` · $${viewerStory.tagged_item_price}` : ''}</Text>
-                </View>
+                  <Text style={styles.storyTagText}>{viewerStory.tagged_item_name}{viewerStory.tagged_item_price ? ` · $${viewerStory.tagged_item_price.toFixed(2)}` : ''}</Text>
+                  {!!viewerStory.tagged_listing_id && <Ionicons name="chevron-forward" size={16} color={Colors.primary} />}
+                </TouchableOpacity>
               )}
             </View>
             <View style={styles.storyViewerFooter}>
@@ -227,6 +257,10 @@ const styles = StyleSheet.create({
   editProfileBtn: { flex: 1, borderRadius: BorderRadius.pill, borderWidth: 1.5, borderColor: Colors.cardBorder, paddingVertical: 7, alignItems: 'center', backgroundColor: Colors.white },
   editProfileText: { fontSize: Typography.fontSize.sm, fontWeight: '600', color: Colors.textPrimary },
   shareProfileBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 1.5, borderColor: Colors.cardBorder, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.white },
+  marketActions: { flexDirection: 'row', gap: Spacing.sm, marginHorizontal: Spacing.base, marginBottom: Spacing.md },
+  marketAction: { flex: 1, minHeight: 78, alignItems: 'center', justifyContent: 'center', padding: Spacing.sm, backgroundColor: Colors.white, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.cardBorder },
+  marketActionValue: { marginTop: 3, color: Colors.textPrimary, fontSize: Typography.fontSize.sm, fontWeight: '800' },
+  marketActionLabel: { marginTop: 1, color: Colors.textSecondary, fontSize: 10, fontWeight: '600' },
   premiumBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, marginHorizontal: Spacing.base, borderRadius: BorderRadius.lg, padding: Spacing.md, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.primaryLight, gap: Spacing.sm },
   premiumText: { flex: 1 },
   premiumTitle: { fontSize: Typography.fontSize.sm, fontWeight: '700', color: Colors.textPrimary },
