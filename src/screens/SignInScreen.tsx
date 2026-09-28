@@ -219,24 +219,8 @@ export default function SignInScreen() {
               )}
             </TouchableOpacity>
 
-            {/* Divider */}
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or continue with</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Social Auth */}
-            <View style={styles.socialRow}>
-              <TouchableOpacity style={styles.socialBtn} disabled>
-                <Ionicons name="logo-apple" size={20} color={Colors.black} />
-                <Text style={styles.socialBtnText}>Apple</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.socialBtn} disabled>
-                <Ionicons name="logo-google" size={20} color={Colors.black} />
-                <Text style={styles.socialBtnText}>Google</Text>
-              </TouchableOpacity>
-            </View>
+            {/* Social sign-in (Apple / Google) removed until it is fully implemented:
+                App Review rejects buttons that do nothing (Guideline 2.1). */}
 
             {/* Toggle Sign In / Sign Up */}
             <TouchableOpacity

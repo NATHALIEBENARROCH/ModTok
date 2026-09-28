@@ -16,6 +16,9 @@ import { useCloset } from '../context/ClosetContext';
 import { ShareStory, useOutfit } from '../context/OutfitContext';
 import { useMarketplace } from '../context/MarketplaceContext';
 
+// Turn on only once Premium is sold through Apple In-App Purchase.
+const SHOW_PREMIUM_BANNER = false;
+
 export default function ProfileScreen({ navigation }: { navigation: any }) {
   const { items, totalItems } = useCloset();
   const { outfits, shareStories } = useOutfit();
@@ -132,16 +135,20 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.premiumBanner}>
-          <Ionicons name="sparkles" size={18} color={Colors.primary} />
-          <View style={styles.premiumText}>
-            <Text style={styles.premiumTitle}>Upgrade to ModTok Premium</Text>
-            <Text style={styles.premiumSubtitle}>Unlimited outfits, AI styling, analytics & more</Text>
+        {/* Premium upgrade banner hidden until Premium exists. When added, it must use
+            Apple In-App Purchase (App Review Guideline 3.1.1), not Stripe. */}
+        {SHOW_PREMIUM_BANNER && (
+          <View style={styles.premiumBanner}>
+            <Ionicons name="sparkles" size={18} color={Colors.primary} />
+            <View style={styles.premiumText}>
+              <Text style={styles.premiumTitle}>Upgrade to ModTok Premium</Text>
+              <Text style={styles.premiumSubtitle}>Unlimited outfits, AI styling, analytics & more</Text>
+            </View>
+            <TouchableOpacity style={styles.premiumBtn}>
+              <Text style={styles.premiumBtnText}>Upgrade</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.premiumBtn}>
-            <Text style={styles.premiumBtnText}>Upgrade</Text>
-          </TouchableOpacity>
-        </View>
+        )}
 
         <View style={styles.looksHeader}>
           <Ionicons name="grid-outline" size={18} color={Colors.textPrimary} />
