@@ -41,6 +41,12 @@ function itemImage(item: ClothingItem) {
   return item.image_url ?? item.image;
 }
 
+// Matches the server: fee = round(10% of price in cents); seller gets the rest.
+function sellerReceives(priceText: string): string {
+  const cents = Math.round(Number(priceText.replace(',', '.')) * 100);
+  return ((cents - Math.round(cents * 0.1)) / 100).toFixed(2);
+}
+
 export default function SellItemPickerScreen() {
   const navigation = useNavigation<any>();
   const { items } = useCloset();
@@ -213,6 +219,12 @@ export default function SellItemPickerScreen() {
             <Text style={styles.fieldLabel}>SHIPPING PRICE (USD)</Text>
             <View style={styles.priceField}><Text style={styles.priceSymbol}>$</Text><TextInput style={styles.priceInput} placeholder="0.00 for free shipping" placeholderTextColor={Colors.mediumGray} keyboardType="decimal-pad" value={shippingPrice} onChangeText={setShippingPrice} returnKeyType="done" /></View>
             <Text style={styles.priceHint}>The buyer sees one total in USD. You will add carrier and tracking after the sale.</Text>
+            <Text style={styles.priceHint}>
+              ModTok keeps a 10% fee on the sale price (not on shipping).
+              {Number(listingPrice.replace(',', '.')) >= 1
+                ? ` You receive $${sellerReceives(listingPrice)} plus shipping.`
+                : ''}
+            </Text>
             <View style={{ height: 20 }} />
           </ScrollView>
 
