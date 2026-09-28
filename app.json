@@ -19,7 +19,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "ModTok uses your camera to photograph clothing items for your closet.",
         "NSPhotoLibraryUsageDescription": "ModTok accesses your photo library to import clothing images.",
-        "NSPhotoLibraryAddUsageDescription": "ModTok saves outfit images to your photo library."
+        "NSPhotoLibraryAddUsageDescription": "ModTok saves outfit images to your photo library.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -42,6 +43,11 @@
           "enableGooglePay": true
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "57e6f9bf-e01d-448e-aa4e-b3e29be5127c"
+      }
+    }
   }
 }
