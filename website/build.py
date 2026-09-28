@@ -4,7 +4,7 @@ Edit website/content/*.md or the settings below, then run:  python3 website/buil
 """
 import pathlib, shutil, markdown
 
-SUPPORT_EMAIL = "{{SUPPORT_EMAIL}}"   # <- set the real support email here
+SUPPORT_EMAIL = "nb26@me.com"
 SITE_URL = "https://nathaliebenarroch.github.io/ModTok/"
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
