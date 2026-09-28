@@ -51,8 +51,10 @@ wardrobe,closet,outfit,style,fashion,resale,thrift,secondhand,marketplace,planne
 ## Category (App Information)
 Primary: **Lifestyle** · Secondary: **Shopping**
 
-## Support URL / Privacy Policy URL
-_Needed. See "Still needed from you" below._
+## URLs
+- **Support URL:** https://nathaliebenarroch.github.io/ModTok/support.html
+- **Marketing URL:** https://nathaliebenarroch.github.io/ModTok/
+- **Privacy Policy URL** (App Privacy tab): https://nathaliebenarroch.github.io/ModTok/privacy.html
 
 ## Copyright
 2026 Nathalie Benarroch
@@ -87,6 +89,4 @@ Suggested: 1) Closet home · 2) Outfit builder · 3) Share/stories feed · 4) Ma
 ---
 
 ## Still needed from you
-1. **Support email** for customers (e.g. support@… or your own email)
-2. **Legal name for the business**: your own name, or a company name if you have one
-3. **A test account** for Apple's reviewer (email + password), with a few closet items added
+1. **A test account** for Apple's reviewer (email + password), with a few closet items added
