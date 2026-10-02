@@ -1,4 +1,5 @@
-import { stripe, supabaseAdmin } from '../_shared/clients.ts';
+import { supabaseAdmin } from '../_shared/clients.ts';
+import { createOnboardingLink, getSellerState } from '../_shared/sellers.ts';
 
 function redirect(location: string): Response {
   return new Response(null, { status: 303, headers: { Location: location, 'Cache-Control': 'no-store' } });
@@ -34,30 +35,21 @@ Deno.serve(async (request) => {
     const safeToken = encodeURIComponent(token);
 
     if (action === 'refresh') {
-      const accountLink = await stripe.accountLinks.create({
-        account: session.stripe_account_id,
-        refresh_url: `${functionBase}?action=refresh&token=${safeToken}`,
-        return_url: `${functionBase}?action=return&token=${safeToken}`,
-        type: 'account_onboarding',
-        collection_options: { fields: 'eventually_due' },
-      });
-      return redirect(accountLink.url);
+      const url = await createOnboardingLink(
+        session.stripe_account_id,
+        `${functionBase}?action=refresh&token=${safeToken}`,
+        `${functionBase}?action=return&token=${safeToken}`,
+      );
+      return redirect(url);
     }
 
-    const account = await stripe.accounts.retrieve(session.stripe_account_id);
-    const ready = Boolean(account.details_submitted && account.charges_enabled && account.payouts_enabled);
+    const state = await getSellerState(session.stripe_account_id);
+    const ready = Boolean(state.onboarding_completed_at);
 
+    const { stripe_account_id: _ignored, ...update } = state;
     const { error: updateError } = await supabaseAdmin
       .from('seller_accounts')
-      .update({
-        country: (account.country ?? 'US').toUpperCase(),
-        default_currency: (account.default_currency ?? 'usd').toLowerCase(),
-        details_submitted: Boolean(account.details_submitted),
-        charges_enabled: Boolean(account.charges_enabled),
-        payouts_enabled: Boolean(account.payouts_enabled),
-        requirements: account.requirements ?? {},
-        onboarding_completed_at: ready ? new Date().toISOString() : null,
-      })
+      .update(update)
       .eq('user_id', session.user_id);
     if (updateError) throw updateError;
 
