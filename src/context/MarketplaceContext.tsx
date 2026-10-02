@@ -68,9 +68,25 @@ const EMPTY_SELLER: SellerAccountStatus = {
 
 const MarketplaceContext = createContext<MarketplaceContextType | undefined>(undefined);
 
-function functionError(error: any, fallback: string): Error {
-  const contextMessage = error?.context?.body?.error;
-  return new Error(contextMessage || error?.message || fallback);
+// The server sends its real reason as JSON ({ error: "..." }) in the response body.
+// supabase-js exposes that response as `error.context`, which must be read before it
+// can be shown; otherwise users only see "Edge Function returned a non-2xx status code".
+export async function functionError(error: any, fallback: string): Promise<Error> {
+  let serverMessage: string | undefined;
+  const response = error?.context;
+  if (response && typeof response.json === 'function') {
+    try {
+      const body = await response.json();
+      serverMessage = body?.error || body?.message;
+    } catch {
+      // Body was empty or not JSON; fall through to the generic message.
+    }
+  }
+  if (!serverMessage && response?.status === 404) {
+    serverMessage = 'The marketplace server is not set up yet.';
+  }
+  const generic = /non-2xx/i.test(error?.message ?? '') ? undefined : error?.message;
+  return new Error(serverMessage || generic || fallback);
 }
 
 export function MarketplaceProvider({ children }: { children: ReactNode }) {
@@ -135,7 +151,7 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.functions.invoke('marketplace-connect', {
       body: { action: 'status' },
     });
-    if (error) throw functionError(error, 'Could not check seller setup.');
+    if (error) throw await functionError(error, 'Could not check seller setup.');
     const status = { ...EMPTY_SELLER, ...data } as SellerAccountStatus;
     setSellerStatus(status);
     return status;
@@ -162,7 +178,7 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.functions.invoke('marketplace-connect', {
       body: { action: 'start' },
     });
-    if (error || !data?.url) throw functionError(error, 'Could not start seller setup.');
+    if (error || !data?.url) throw await functionError(error, 'Could not start seller setup.');
     return data.url as string;
   }, []);
 
@@ -170,7 +186,7 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.functions.invoke('marketplace-connect', {
       body: { action: 'dashboard' },
     });
-    if (error || !data?.url) throw functionError(error, 'Could not open the seller dashboard.');
+    if (error || !data?.url) throw await functionError(error, 'Could not open the seller dashboard.');
     return data.url as string;
   }, []);
 
@@ -208,7 +224,7 @@ export function MarketplaceProvider({ children }: { children: ReactNode }) {
 
   const runOrderAction = useCallback(async (payload: OrderActionPayload) => {
     const { data, error } = await supabase.functions.invoke('marketplace-order-action', { body: payload });
-    if (error || !data?.order) throw functionError(error, 'Could not update the order.');
+    if (error || !data?.order) throw await functionError(error, 'Could not update the order.');
     await Promise.all([refreshOrders(), refreshListings()]);
     return data.order as MarketplaceOrder;
   }, [refreshListings, refreshOrders]);

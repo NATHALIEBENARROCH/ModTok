@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { initPaymentSheet, initStripe, presentPaymentSheet } from '../lib/stripeNative';
-import { useMarketplace } from '../context/MarketplaceContext';
+import { functionError, useMarketplace } from '../context/MarketplaceContext';
 import { supabase } from '../lib/supabase';
 import { formatUsd, ShippingAddress } from '../types/marketplace';
 import { BorderRadius, Colors, Spacing, Typography } from '../theme';
@@ -94,7 +94,7 @@ export default function CheckoutScreen() {
       const { data, error } = await supabase.functions.invoke('marketplace-checkout', {
         body: { listing_id: listing.id, shipping_address: shippingAddress },
       });
-      if (error) throw new Error(error?.context?.body?.error || error.message || 'Could not start checkout.');
+      if (error) throw await functionError(error, 'Could not start checkout.');
       if (!data?.payment_intent_client_secret || !data?.publishable_key || !data?.order_id) {
         throw new Error('Checkout is not fully configured yet.');
       }

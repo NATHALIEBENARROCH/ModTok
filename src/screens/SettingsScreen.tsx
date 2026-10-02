@@ -14,6 +14,7 @@ import {
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
 import { supabase } from '../lib/supabase';
+import { functionError } from '../context/MarketplaceContext';
 
 type SettingsScreenProps = {
   navigation: any;
@@ -69,7 +70,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
                   try {
                     setDeletingAccount(true);
                     const { data, error } = await supabase.functions.invoke('delete-account', { body: {} });
-                    if (error || !data?.deleted) throw new Error(error?.context?.body?.error || error?.message || 'Account could not be deleted.');
+                    if (error || !data?.deleted) throw await functionError(error, 'Account could not be deleted.');
                     await supabase.auth.signOut();
                   } catch (error: any) {
                     Alert.alert('Account not deleted', error?.message ?? 'Please try again or contact support.');
