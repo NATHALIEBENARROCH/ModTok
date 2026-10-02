@@ -19,6 +19,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, Spacing, BorderRadius, Typography } from "../theme";
 import { ClothingItem, useCloset } from "../context/ClosetContext";
@@ -63,6 +64,7 @@ function buildSlot(cat: string, allItems: ClothingItem[]): OutfitSlot {
 
 export default function StyleScreen() {
   const { width } = useWindowDimensions();
+  const navigation = useNavigation<any>();
   const { items: closetItems } = useCloset();
 
   // A calm six-piece starting canvas. Any other category can be added only when the look needs it.
@@ -224,7 +226,20 @@ export default function StyleScreen() {
       setSavedCategoryName(selectedOccasion || 'Saved outfits');
       setSavedOutfit(true);
       setTimeout(() => setSavedOutfit(false), 3000);
-      if (photoNotice) Alert.alert('Outfit saved', photoNotice.trim());
+      // Confirm clearly and offer a way to the saved outfits. The short delay lets the
+      // save sheet finish closing first; iOS drops an alert shown while a modal is dismissing.
+      const savedName = outfitName.trim();
+      const savedPlace = selectedOccasion || 'Saved outfits';
+      setTimeout(() => {
+        Alert.alert(
+          'Outfit saved',
+          `"${savedName}" was saved to ${savedPlace}.${photoNotice}`,
+          [
+            { text: 'Keep styling', style: 'cancel' },
+            { text: 'View saved outfits', onPress: () => navigation.navigate('Save') },
+          ],
+        );
+      }, 450);
     } catch (error) {
       console.error('Could not save outfit:', error);
       Alert.alert('Could not save outfit', 'Please check that you are signed in, then try again.');
