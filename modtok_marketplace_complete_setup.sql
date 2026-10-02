@@ -471,6 +471,28 @@ create policy "Users can remove own blocks"
   on public.user_blocks for delete
   using (auth.uid() = blocker_id);
 
+-- Table privileges. Without these the server functions fail with error 42501.
+-- Row-level security above still limits what each user can see or change.
+-- Server functions (seller setup, checkout, orders, webhook, account deletion)
+grant all on table
+  public.seller_accounts,
+  public.seller_onboarding_sessions,
+  public.marketplace_listings,
+  public.orders,
+  public.order_events,
+  public.stripe_events,
+  public.marketplace_reports,
+  public.user_blocks
+to service_role;
+
+-- Signed-in app users, limited to what the row-level security policies permit
+grant select on table public.seller_accounts to authenticated;
+grant select, insert, update, delete on table public.marketplace_listings to authenticated;
+grant select on table public.orders to authenticated;
+grant select on table public.order_events to authenticated;
+grant select, insert on table public.marketplace_reports to authenticated;
+grant select, insert, update, delete on table public.user_blocks to authenticated;
+
 -- Realtime order updates are optional but useful for PaymentSheet/webhook status.
 do $$
 begin
