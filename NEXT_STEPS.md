@@ -1,42 +1,34 @@
-# ModTok: Plan for tomorrow
+# ModTok: where we are and what's next
 
-## Done on Sept 28
-- App fixes (removed the sign-in buttons that didn't work, hid the Premium banner, showed sellers the 10% fee)
-- New build made and sent to Apple through Expo
-- Basic website live: https://nathaliebenarroch.github.io/ModTok/
-- App Store page: description, keywords, URLs, copyright, App Privacy (published)
-- Stripe: account renamed ModTok, business details, statement descriptor MODTOK
+## Done (as of Oct 2)
+- App on your iPhone through TestFlight (build 4)
+- Supabase project resumed (it had paused; that caused "Network request failed")
+- Database permissions fixed (seller setup, checkout and orders were all blocked)
+- Seller setup rewritten for Stripe's current method; tested: **"Payouts ready"** works
+- "Outfit saved" message with a link to saved outfits (in the next build)
+- Real error messages instead of "Edge Function returned a non-2xx status code" (in the next build)
+- Website live, App Store text and privacy answers filled in
+- Decision: **launch US-only first (Option A)**, add Canada in the next update
 
----
+## Next session, in this order
+1. **Build the new version.** In Terminal:
+   ```bash
+   cd ~/Desktop/modtok
+   npx eas-cli@latest build --platform ios --profile production --auto-submit
+   ```
+   About 30 minutes. It arrives in TestFlight as 1.0.0 (5). Update the app on your iPhone.
+2. **Test one full sale in test mode** (10 minutes): list an item for $20; with a second account buy it
+   using card `4242 4242 4242 4242`, any future date, any 3 digits, a US address; mark it shipped.
+3. **Take 3–5 screenshots** on your iPhone: closet, Style, Saved, marketplace, Sell. Send them to Claude.
+4. **Create the reviewer account** in the app (e.g. nb26+review@me.com), add a few clothes.
+5. With Claude: upload screenshots, select build 5, enter the reviewer login, choose
+   **Manually release this version**, then **Add for Review**.
 
-## 1. THE APP (morning, about 2 hours)
-- [ ] Check the build arrived: App Store Connect → ModTok → **TestFlight** tab
-- [ ] Install the **TestFlight** app on your iPhone and test ModTok
-- [ ] Take **3–5 screenshots**: closet, outfit builder, stories, marketplace, sell. Send to Claude.
-- [ ] Create a **test account** for Apple's reviewer (email + password, a few clothes added). Send to Claude.
-- [ ] With Claude: select the build, upload the screenshots, enter the test login
-- [ ] Choose **"Manually release this version"**, then click **Add for Review**
+## Before the app is public (while Apple reviews)
+- Stripe **Live**: finish Connect setup, then run `bash scripts/go_live_stripe.sh` (see GO_LIVE_PAYMENTS.md)
+- Supabase **Pro** plan, so the project never pauses again
+- Open the app every few days until then, to keep the free Supabase project awake
 
-## 2. STRIPE (15 minutes)
-- [ ] **Verify now**: phone SMS (Settings → Business → Account details)
-- [ ] Open **Connect** in the left menu and send Claude a screenshot
-
-## 3. THE WEBSITE (Claude builds it, you review)
-- [ ] New homepage in the pitch-deck style, using your phone mockups
-- [ ] Sections: What is ModTok · The Problem · The Solution · Who it's for
-- [ ] Features the app doesn't have yet (import from shops, calendar, rentals, video) marked **"Coming soon"**
-- [ ] No Stocksy or Vogue photos (licensing); use your own mockups
-- [ ] You'll need to: send the phone mockup images as separate files, if you have them
-
-## 4. THE INVESTOR DECK (Claude builds it, you review)
-- [ ] Editable slide deck from ModTok_gv.pdf
-- [ ] Fix "ModTalk" → ModTok, "shareand" → "share and"
-- [ ] Decide the funding amount for "Seeking $X"
-- [ ] Only use photos you're allowed to use
-
----
-
-## Optional, any time
-- PO box (Canada Post, photo ID); then update the Stripe Support address
-- Turn on Apple Developer **Auto-renew** (membership ends Sept 7, 2027)
-- Delete the old Desktop copies: modtok_…_165216, modtok_current.zip, modtok-website. **Keep "modtok"!**
+## After approval
+- Add **Canada** (sellers and buyers) as version 1.1
+- New visual website from your pitch deck, and the editable investor deck
