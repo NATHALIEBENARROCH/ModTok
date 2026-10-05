@@ -11,7 +11,7 @@
 - Decision: **launch US-only first (Option A)**, add Canada in the next update
 
 ## Next session, in this order
-1. **Build the new version.** In Terminal:
+1. ~~Build the new version~~ **Done Oct 4: build 1.0.0 (5) is in TestFlight.** (Command, for next time:)
    ```bash
    cd ~/Desktop/modtok
    npx eas-cli@latest build --platform ios --profile production --auto-submit
@@ -31,4 +31,7 @@
 
 ## After approval
 - Add **Canada** (sellers and buyers) as version 1.1
+- **Edit Outfit redesign** (version 1.1): show only the outfit's pieces, one row each; swipe a row
+  sideways to swap for another piece of the same category; "See all" opens that category's grid;
+  ✕ removes a piece; "+ Add a piece". Based on Nathalie's mockup of Oct 4.
 - New visual website from your pitch deck, and the editable investor deck
