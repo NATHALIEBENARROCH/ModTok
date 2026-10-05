@@ -65,9 +65,18 @@ export default function MarketplaceScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.eyebrow}>SHOP REAL CLOSETS</Text>
-          <Text style={styles.title}>Marketplace</Text>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Main'))}
+            accessibilityLabel="Back"
+          >
+            <Ionicons name="chevron-back" size={25} color={Colors.textPrimary} />
+          </TouchableOpacity>
+          <View>
+            <Text style={styles.eyebrow}>SHOP REAL CLOSETS</Text>
+            <Text style={styles.title}>Marketplace</Text>
+          </View>
         </View>
         <TouchableOpacity style={styles.ordersButton} onPress={() => navigation.navigate('Orders')}>
           <Ionicons name="receipt-outline" size={20} color={Colors.textPrimary} />
@@ -133,6 +142,8 @@ export default function MarketplaceScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.base, paddingTop: Spacing.sm, paddingBottom: Spacing.md },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
+  backButton: { width: 40, height: 44, alignItems: 'flex-start', justifyContent: 'center' },
   eyebrow: { color: Colors.primary, fontSize: Typography.fontSize.xs, fontWeight: '800', letterSpacing: 1.1 },
   title: { color: Colors.textPrimary, fontSize: Typography.fontSize.xxl, fontWeight: '800', letterSpacing: -0.7 },
   ordersButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: Spacing.md, borderRadius: BorderRadius.pill, backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.cardBorder },
