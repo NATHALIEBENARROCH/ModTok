@@ -12,7 +12,7 @@ export default function ModTokLogo({
 }: ModTokLogoProps) {
   const logoWidth = size === "small" ? 140 : size === "medium" ? 200 : 280;
   const logoHeight = logoWidth * 0.55;
-  const taglineSize = size === "small" ? 11 : size === "medium" ? 13 : 16;
+  const taglineSize = size === "small" ? 13 : size === "medium" ? 16 : 19;
 
   return (
     <View style={styles.container}>
@@ -35,7 +35,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   tagline: {
-    color: "#888888",
+    color: "#555555",
     fontWeight: "500",
     marginTop: 6,
     letterSpacing: 0.5,
