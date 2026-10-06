@@ -21,4 +21,10 @@ Apple reviews within about 48 hours and emails nb26@me.com. Release is set to **
   opens the category grid, ✕ removes, "+ Add a piece" adds.
 - Bigger app icon and bigger, darker tagline: also written, waiting for the next build.
 - Do NOT replace build 7 on the App Store version page while Apple is reviewing.
-- New visual website from the pitch deck, and the editable investor deck
+
+## Investor presentation and website
+- **Investor presentation**: first version made Oct 5 as an editable Claude slide deck
+  ("ModTok Investor Presentation"), built from the pitch deck `ModTok_gv.pdf` with Nathalie's phone
+  photos and real app screenshots. Still to fill in: the amount being raised, and a source for the
+  $350B market figure and the "20% of wardrobe" figure.
+- **New visual website** from the same pitch deck and images.
