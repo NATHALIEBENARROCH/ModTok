@@ -1,26 +1,13 @@
 # ModTok: where we are and what's next
 
-## Done (as of Oct 5)
-- Build 6 is in TestFlight with all fixes; a full test sale worked (seller setup, listing, purchase, "Paid")
-- App Store Connect: 6 screenshots, description, keywords, URLs, privacy answers, build 6 selected,
-  reviewer login (nb26+review@me.com) and review notes entered
-- Back button added to the Marketplace screen (in the code, needs a new build)
+## Status: SUBMITTED TO APPLE on Oct 5, 2026 (version 1.0, build 7)
+Apple reviews within about 48 hours and emails nb26@me.com. Release is set to **manual**.
 
-## From home, in this order
-1. **Build the new version** (with the Marketplace back button). In Terminal:
-   ```bash
-   cd ~/Desktop/modtok
-   npx eas-cli@latest build --platform ios --profile production --auto-submit
-   ```
-   Answer **n** to "Do you want to log in to your Apple account?". About 30 minutes.
-2. **While it builds:** in ModTok, sign in as nb26@me.com and list 1–2 items (Sell → List an Item),
-   so the marketplace isn't empty for Apple's reviewer.
-3. **In App Store Connect** (Apps → ModTok → 1.0 Prepare for Submission):
-   - Build: remove 6, add the new build (7)
-   - Phone number starts with **+1**
-   - Version Release: **Manually release this version**
-   - **Save**, then **Add for Review**, then **Submit to App Review**
-   - If Apple lists missing items (age rating, category, price), send Claude a screenshot.
+## While Apple reviews
+- **Open ModTok every day** so the free Supabase project stays awake. If it pauses, the reviewer
+  gets "Network request failed" and rejects the app.
+- Sign in as nb26@me.com and list 1–2 items, so the marketplace isn't empty for the reviewer.
+- If Apple rejects or asks a question, paste their message to Claude.
 
 ## Before the app is public (while Apple reviews)
 - Stripe **Live**: finish Connect setup, then run `bash scripts/go_live_stripe.sh` (see GO_LIVE_PAYMENTS.md)
