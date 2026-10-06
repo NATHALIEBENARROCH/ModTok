@@ -16,7 +16,9 @@ Apple reviews within about 48 hours and emails nb26@me.com. Release is set to **
 
 ## After approval (version 1.1)
 - Add **Canada** (sellers and buyers)
-- **Edit Outfit redesign**: show only the outfit's pieces, one row each; swipe a row sideways to swap
-  for another piece of the same category; "See all" opens that category's grid; ✕ removes a piece;
-  "+ Add a piece". Based on Nathalie's mockup of Oct 4.
+- **Edit Outfit redesign**: WRITTEN (Oct 5), not yet tested on a phone. Goes out with the next build.
+  Each piece is one row; swipe sideways (or tap the arrows) to swap within its category, "See all"
+  opens the category grid, ✕ removes, "+ Add a piece" adds.
+- Bigger app icon and bigger, darker tagline: also written, waiting for the next build.
+- Do NOT replace build 7 on the App Store version page while Apple is reviewing.
 - New visual website from the pitch deck, and the editable investor deck
