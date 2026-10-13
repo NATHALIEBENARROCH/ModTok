@@ -19,6 +19,7 @@ Apple reviews within about 48 hours and emails nb26@me.com. Release is set to **
 - **Edit Outfit redesign**: WRITTEN (Oct 5), not yet tested on a phone. Goes out with the next build.
   Each piece is one row; swipe sideways (or tap the arrows) to swap within its category, "See all"
   opens the category grid, ✕ removes, "+ Add a piece" adds.
+- Fixed (Oct 12): after a purchase, going back briefly showed the item as still for sale.
 - Bigger app icon and bigger, darker tagline: also written, waiting for the next build.
 - Do NOT replace build 7 on the App Store version page while Apple is reviewing.
 

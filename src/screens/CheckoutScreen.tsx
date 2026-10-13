@@ -49,7 +49,7 @@ export default function CheckoutScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const listingId = route.params?.listingId as string;
-  const { listings, runOrderAction, refreshOrders } = useMarketplace();
+  const { listings, runOrderAction, refreshOrders, refreshListings } = useMarketplace();
   const listing = listings.find((item) => item.id === listingId);
   const [processing, setProcessing] = useState(false);
   const [name, setName] = useState('');
@@ -124,7 +124,8 @@ export default function CheckoutScreen() {
         throw new Error(paymentError.message);
       }
 
-      await refreshOrders();
+      // Refresh listings too, so the item no longer shows as for sale when going back.
+      await Promise.all([refreshOrders(), refreshListings()]);
       Alert.alert('Payment received', 'Your purchase is confirmed. You can follow shipping in My Purchases.', [
         { text: 'View purchases', onPress: () => navigation.replace('Orders', { initialTab: 'Purchases' }) },
       ]);
