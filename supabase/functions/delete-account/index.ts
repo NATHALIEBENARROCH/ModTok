@@ -79,7 +79,7 @@ Deno.serve(async (request) => {
     return jsonResponse({ deleted: true });
   } catch (error) {
     console.error('delete-account error', error);
-    const message = error instanceof Error ? error.message : 'Account could not be deleted.';
+    const message = typeof (error as any)?.message === 'string' ? (error as any).message : 'Account could not be deleted.';
     const status = message.includes('signed in') || message.includes('session') ? 401 : 400;
     return errorResponse(message, status);
   }

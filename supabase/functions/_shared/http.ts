@@ -19,6 +19,12 @@ export function jsonResponse(body: unknown, status = 200): Response {
 }
 
 export function errorResponse(error: unknown, status = 400): Response {
-  const message = error instanceof Error ? error.message : 'Unexpected error';
+  // Accept plain strings and error-like objects (Supabase errors are not Error instances),
+  // so the app shows the real reason instead of "Unexpected error".
+  const message =
+    typeof error === 'string' ? error
+    : error instanceof Error ? error.message
+    : typeof (error as any)?.message === 'string' ? (error as any).message
+    : 'Unexpected error';
   return jsonResponse({ error: message }, status);
 }
