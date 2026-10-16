@@ -15,6 +15,9 @@ Apple reviews within about 48 hours and emails nb26@me.com. Release is set to **
 - Open the app every few days until then, to keep the free Supabase project awake
 
 ## After approval (version 1.1)
+- **Prepaid shipping labels, Sell an Outfit, and buyer bundles**: WRITTEN (Oct 16) on the branch
+  `feature/shipping-labels-outfit-bundles`, not yet tested on a phone. Setup steps, in order, are in
+  `SHIPPING_AND_BUNDLES.md` (Shippo account, one SQL script, two secrets, deploy, test).
 - Add **Canada** (sellers and buyers)
 - **Edit Outfit redesign**: WRITTEN (Oct 5), not yet tested on a phone. Goes out with the next build.
   Each piece is one row; swipe sideways (or tap the arrows) to swap within its category, "See all"

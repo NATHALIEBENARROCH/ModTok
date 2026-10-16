@@ -35,12 +35,18 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
 
 type OrdersTab = 'Purchases' | 'Sales';
 
+type CardAction = 'mark_processing' | 'confirm_delivered' | 'refund' | 'retry_label' | 'dropped_off';
+
 function OrderCard({ order, tab, onShip, onAction }: {
   order: MarketplaceOrder;
   tab: OrdersTab;
   onShip: () => void;
-  onAction: (action: 'mark_processing' | 'confirm_delivered' | 'refund') => void;
+  onAction: (action: CardAction) => void;
 }) {
+  const bundleItems = order.listing_snapshot.items ?? [];
+  const outfitPieces = order.listing_snapshot.pieces ?? [];
+  const isOpenSale = tab === 'Sales' && ['paid', 'processing'].includes(order.status);
+  const labelStatus = order.label_status ?? 'none';
   const image = order.listing_snapshot.image_urls?.[0];
   const title = order.listing_snapshot.title || 'Marketplace item';
   const otherParty = tab === 'Purchases'
@@ -56,10 +62,64 @@ function OrderCard({ order, tab, onShip, onAction }: {
         <View style={styles.orderCopy}>
           <Text style={styles.orderTitle} numberOfLines={2}>{title}</Text>
           <Text style={styles.orderParty}>{tab === 'Purchases' ? 'Seller' : 'Buyer'}: {otherParty}</Text>
+          {bundleItems.length > 0 && (
+            <Text style={styles.orderParty} numberOfLines={2}>{bundleItems.map((item) => item.title).join(' · ')}</Text>
+          )}
+          {outfitPieces.length > 0 && (
+            <Text style={styles.orderParty} numberOfLines={2}>Outfit: {outfitPieces.map((piece) => piece.title).join(' · ')}</Text>
+          )}
           <Text style={styles.orderPrice}>{formatUsd(order.total_amount_cents)}</Text>
+          {tab === 'Sales' && (
+            <Text style={styles.orderParty}>You receive {formatUsd(order.seller_net_cents)}</Text>
+          )}
         </View>
         <View style={styles.statusPill}><Text style={styles.statusText}>{STATUS_LABELS[order.status]}</Text></View>
       </View>
+
+      {isOpenSale && labelStatus === 'purchased' && order.label_url && (
+        <View style={styles.labelBox}>
+          <View style={styles.labelHeader}>
+            <Ionicons name="print-outline" size={20} color={Colors.green} />
+            <Text style={styles.labelTitle}>Prepaid label ready</Text>
+          </View>
+          <Text style={styles.labelText}>
+            Print it and tape it to the package{order.package_size ? ` (${order.package_size} box)` : ''}, then drop it off with {order.tracking_carrier ?? 'the carrier'}. The buyer is updated automatically when it's scanned.
+          </Text>
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.primaryAction} onPress={() => Linking.openURL(order.label_url!)}>
+              <Text style={styles.primaryActionText}>Open label</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryAction} onPress={() => onAction('dropped_off')}>
+              <Text style={styles.secondaryActionText}>I dropped it off</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {isOpenSale && labelStatus === 'pending' && (
+        <View style={styles.labelBox}>
+          <View style={styles.labelHeader}>
+            <ActivityIndicator size="small" color={Colors.primary} />
+            <Text style={styles.labelTitle}>Creating your prepaid label…</Text>
+          </View>
+          <Text style={styles.labelText}>Pull down to refresh in a few seconds.</Text>
+        </View>
+      )}
+
+      {isOpenSale && labelStatus === 'failed' && (
+        <View style={[styles.labelBox, styles.labelBoxProblem]}>
+          <View style={styles.labelHeader}>
+            <Ionicons name="alert-circle-outline" size={20} color={Colors.primaryDark} />
+            <Text style={styles.labelTitle}>No label yet</Text>
+          </View>
+          {!!order.label_error && <Text style={styles.labelText}>{order.label_error}</Text>}
+          <View style={styles.actionRow}>
+            <TouchableOpacity style={styles.primaryAction} onPress={() => onAction('retry_label')}>
+              <Text style={styles.primaryActionText}>Get label</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {tab === 'Sales' && ['paid', 'processing', 'shipped'].includes(order.status) && (
         <View style={styles.addressBox}>
@@ -82,8 +142,12 @@ function OrderCard({ order, tab, onShip, onAction }: {
         {tab === 'Sales' && order.status === 'paid' && (
           <TouchableOpacity style={styles.secondaryAction} onPress={() => onAction('mark_processing')}><Text style={styles.secondaryActionText}>Start preparing</Text></TouchableOpacity>
         )}
-        {tab === 'Sales' && ['paid', 'processing'].includes(order.status) && (
-          <TouchableOpacity style={styles.primaryAction} onPress={onShip}><Text style={styles.primaryActionText}>Add tracking</Text></TouchableOpacity>
+        {isOpenSale && labelStatus !== 'purchased' && labelStatus !== 'pending' && (
+          <TouchableOpacity style={labelStatus === 'failed' ? styles.secondaryAction : styles.primaryAction} onPress={onShip}>
+            <Text style={labelStatus === 'failed' ? styles.secondaryActionText : styles.primaryActionText}>
+              {labelStatus === 'failed' ? 'Shipped another way' : 'Add tracking'}
+            </Text>
+          </TouchableOpacity>
         )}
         {tab === 'Purchases' && order.status === 'shipped' && (
           <TouchableOpacity style={styles.primaryAction} onPress={() => onAction('confirm_delivered')}><Text style={styles.primaryActionText}>Confirm delivery</Text></TouchableOpacity>
@@ -113,11 +177,24 @@ export default function OrdersScreen() {
 
   const orders = tab === 'Purchases' ? purchases : sales;
 
-  const runAction = (order: MarketplaceOrder, action: 'mark_processing' | 'confirm_delivered' | 'refund') => {
+  const runAction = (order: MarketplaceOrder, action: CardAction) => {
+    if (action === 'retry_label') {
+      setSaving(true);
+      runOrderAction({ action: 'retry_label', order_id: order.id })
+        .then((updated) => {
+          if (updated.label_status === 'failed') {
+            Alert.alert('Label not created', updated.label_error ?? 'Please try again, or ship another way and add tracking.');
+          }
+        })
+        .catch((error: any) => Alert.alert('Could not create label', error?.message ?? 'Please try again.'))
+        .finally(() => setSaving(false));
+      return;
+    }
     const labels = {
       mark_processing: ['Prepare order?', 'This tells the buyer you are getting their item ready.'],
       confirm_delivered: ['Confirm delivery?', 'Confirm that you received this item.'],
-      refund: ['Refund this order?', 'The full payment will be returned and the seller transfer will be reversed.'],
+      refund: ['Refund this order?', 'The full payment will be returned and the seller transfer will be reversed. An unused label is refunded too.'],
+      dropped_off: ['Dropped off?', 'The buyer will see the order as shipped, with the tracking from your label.'],
     } as const;
     Alert.alert(labels[action][0], labels[action][1], [
       { text: 'Cancel', style: 'cancel' },
@@ -127,7 +204,7 @@ export default function OrdersScreen() {
         onPress: async () => {
           try {
             setSaving(true);
-            await runOrderAction({ action, order_id: order.id });
+            await runOrderAction({ action: action === 'dropped_off' ? 'mark_shipped' : action, order_id: order.id });
           } catch (error: any) {
             Alert.alert('Could not update order', error?.message ?? 'Please try again.');
           } finally {
@@ -246,6 +323,11 @@ const styles = StyleSheet.create({
   orderPrice: { marginTop: 6, color: Colors.primaryDark, fontSize: Typography.fontSize.md, fontWeight: '800' },
   statusPill: { maxWidth: 100, paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: BorderRadius.pill, backgroundColor: '#F9E5E1' },
   statusText: { color: Colors.primaryDark, fontSize: 10, fontWeight: '800', textAlign: 'center' },
+  labelBox: { marginTop: Spacing.md, padding: Spacing.md, borderRadius: BorderRadius.md, backgroundColor: '#EAF6EF' },
+  labelBoxProblem: { backgroundColor: '#F9E5E1' },
+  labelHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  labelTitle: { color: Colors.textPrimary, fontSize: Typography.fontSize.sm, fontWeight: '800' },
+  labelText: { marginTop: 4, color: Colors.textSecondary, fontSize: Typography.fontSize.xs, lineHeight: 17 },
   addressBox: { marginTop: Spacing.md, padding: Spacing.md, borderRadius: BorderRadius.md, backgroundColor: Colors.background },
   addressLabel: { color: Colors.textSecondary, fontSize: 10, fontWeight: '800', letterSpacing: 0.8, marginBottom: 4 },
   addressText: { color: Colors.textPrimary, fontSize: Typography.fontSize.sm, lineHeight: 19 },

@@ -13,9 +13,24 @@ type ShippingAddress = {
 };
 
 type CheckoutRequest = {
+  // One listing (an item or an outfit), as sent by app 1.0 ...
   listing_id?: string;
+  // ... or several listings from the same seller (a buyer-built bundle), from app 1.1.
+  listing_ids?: string[];
   shipping_address?: ShippingAddress;
 };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function listingIds(body: CheckoutRequest): string[] {
+  const raw = Array.isArray(body.listing_ids) && body.listing_ids.length > 0
+    ? body.listing_ids
+    : body.listing_id ? [body.listing_id] : [];
+  const ids = Array.from(new Set(raw.filter((id) => typeof id === 'string' && UUID.test(id))));
+  if (ids.length === 0) throw new Error('Choose at least one item.');
+  if (ids.length > 20) throw new Error('A bundle can have up to 20 items.');
+  return ids;
+}
 
 function validateAddress(value?: ShippingAddress): Required<Omit<ShippingAddress, 'line2' | 'phone'>> & Pick<ShippingAddress, 'line2' | 'phone'> {
   const address = value ?? {};
@@ -38,17 +53,12 @@ function validateAddress(value?: ShippingAddress): Required<Omit<ShippingAddress
   };
 }
 
-async function releaseReservation(orderId: string, listingId: string) {
-  await supabaseAdmin
-    .from('orders')
-    .update({ status: 'canceled', canceled_at: new Date().toISOString() })
-    .eq('id', orderId)
-    .eq('status', 'pending_payment');
-  await supabaseAdmin
-    .from('marketplace_listings')
-    .update({ status: 'active', reserved_until: null })
-    .eq('id', listingId)
-    .eq('status', 'reserved');
+async function releaseReservation(orderId: string) {
+  const { error } = await supabaseAdmin.rpc('release_order_reservation', {
+    p_order_id: orderId,
+    p_event: 'checkout_failed',
+  });
+  if (error) console.error('Could not release checkout', orderId, error);
 }
 
 Deno.serve(async (request) => {
@@ -60,11 +70,11 @@ Deno.serve(async (request) => {
   try {
     const user = await requireUser(request);
     const body = (await request.json()) as CheckoutRequest;
-    if (!body.listing_id) throw new Error('A listing is required.');
+    const ids = listingIds(body);
     const shipping = validateAddress(body.shipping_address);
 
-    const { data: order, error: reserveError } = await supabaseAdmin.rpc('reserve_marketplace_listing', {
-      p_listing_id: body.listing_id,
+    const { data: order, error: reserveError } = await supabaseAdmin.rpc('reserve_marketplace_cart', {
+      p_listing_ids: ids,
       p_buyer_id: user.id,
       p_shipping_address: shipping,
       p_platform_fee_bps: platformFeeBps(),
@@ -91,13 +101,15 @@ Deno.serve(async (request) => {
           amount: order.total_amount_cents,
           currency: 'usd',
           automatic_payment_methods: { enabled: true },
-          application_fee_amount: order.platform_fee_cents,
+          // ModTok keeps its fee plus the shipping money, which pays for the prepaid label.
+          application_fee_amount: order.platform_fee_cents + (order.platform_shipping_cents ?? 0),
           transfer_data: { destination: sellerAccount.stripe_account_id },
           on_behalf_of: sellerAccount.stripe_account_id,
           description: `ModTok order ${order.id}`,
           metadata: {
             modtok_order_id: order.id,
-            modtok_listing_id: order.listing_id,
+            modtok_listing_id: order.listing_id ?? 'bundle',
+            modtok_order_kind: order.order_kind ?? 'single',
             modtok_buyer_id: order.buyer_id,
             modtok_seller_id: order.seller_id,
           },
@@ -131,14 +143,18 @@ Deno.serve(async (request) => {
       payment_intent_client_secret: paymentIntent.client_secret,
       publishable_key: Deno.env.get('STRIPE_PUBLISHABLE_KEY'),
       amount_cents: order.total_amount_cents,
+      item_amount_cents: order.item_amount_cents,
+      discount_amount_cents: order.discount_amount_cents ?? 0,
+      shipping_amount_cents: order.shipping_amount_cents,
+      package_size: order.package_size,
       currency: 'usd',
     });
   } catch (error) {
     console.error('marketplace-checkout error', error);
     if (reservedOrder?.id && !reservedOrder?.stripe_payment_intent_id) {
-      await releaseReservation(reservedOrder.id, reservedOrder.listing_id);
+      await releaseReservation(reservedOrder.id);
     }
-    const message = error instanceof Error ? error.message : 'Checkout could not be started.';
+    const message = error instanceof Error ? error.message : (error as any)?.message ?? 'Checkout could not be started.';
     const status = message.includes('signed in') || message.includes('session') ? 401 : 400;
     return errorResponse(message, status);
   }

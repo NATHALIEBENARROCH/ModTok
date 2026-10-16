@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -17,7 +18,14 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { initPaymentSheet, initStripe, presentPaymentSheet } from '../lib/stripeNative';
 import { functionError, useMarketplace } from '../context/MarketplaceContext';
 import { supabase } from '../lib/supabase';
-import { formatUsd, ShippingAddress } from '../types/marketplace';
+import {
+  BundleDiscount,
+  PACKAGE_SIZE_LABELS,
+  ShippingAddress,
+  bundleDiscountBps,
+  bundlePackageSize,
+  formatUsd,
+} from '../types/marketplace';
 import { BorderRadius, Colors, Spacing, Typography } from '../theme';
 
 function CheckoutField({ label, value, onChangeText, placeholder, half = false, keyboardType }: {
@@ -48,9 +56,34 @@ function CheckoutField({ label, value, onChangeText, placeholder, half = false, 
 export default function CheckoutScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const listingId = route.params?.listingId as string;
-  const { listings, runOrderAction, refreshOrders, refreshListings } = useMarketplace();
-  const listing = listings.find((item) => item.id === listingId);
+  const requestedIds: string[] = route.params?.listingIds ?? (route.params?.listingId ? [route.params.listingId] : []);
+  const {
+    listings,
+    runOrderAction,
+    refreshOrders,
+    refreshListings,
+    shippingRate,
+    getBundleDiscount,
+    bundle,
+    removeFromBundle,
+    clearBundle,
+  } = useMarketplace();
+  // A bundle checkout follows the live bundle, so removing an item here updates it.
+  const [isBundleCheckout] = useState(() => Boolean(
+    bundle
+    && requestedIds.length === bundle.listingIds.length
+    && requestedIds.every((id) => bundle.listingIds.includes(id)),
+  ));
+  const listingIds = isBundleCheckout ? bundle?.listingIds ?? [] : requestedIds;
+  const liveItems = useMemo(
+    () => listingIds.map((id) => listings.find((item) => item.id === id)).filter(Boolean) as typeof listings,
+    [listingIds, listings],
+  );
+  // Once paid, keep showing what was bought while the lists refresh behind the alert.
+  const [paidItems, setPaidItems] = useState<typeof listings | null>(null);
+  const items = paidItems ?? liveItems;
+  const listing = items[0];
+  const [discount, setDiscount] = useState<BundleDiscount | null>(null);
   const [processing, setProcessing] = useState(false);
   const [name, setName] = useState('');
   const [line1, setLine1] = useState('');
@@ -60,7 +93,25 @@ export default function CheckoutScreen() {
   const [postalCode, setPostalCode] = useState('');
   const [phone, setPhone] = useState('');
 
-  const total = useMemo(() => listing ? listing.price_cents + listing.shipping_price_cents : 0, [listing]);
+  useEffect(() => {
+    if (items.length > 1 && listing?.seller_id) {
+      getBundleDiscount(listing.seller_id).then(setDiscount);
+    } else {
+      setDiscount(null);
+    }
+  }, [getBundleDiscount, items.length, listing?.seller_id]);
+
+  // Same math as the server; the server's numbers are what Stripe charges.
+  const quote = useMemo(() => {
+    const subtotal = items.reduce((sum, item) => sum + item.price_cents, 0);
+    const discountBps = bundleDiscountBps(discount, items.length);
+    const discountCents = Math.round((subtotal * discountBps) / 10000);
+    const size = items.length > 1 ? bundlePackageSize(items) : listing?.package_size ?? 'medium';
+    const shipping = items.length > 1 ? shippingRate(size).price_cents : listing?.shipping_price_cents ?? 0;
+    return { subtotal, discountBps, discountCents, size, shipping, total: subtotal - discountCents + shipping };
+  }, [discount, items, listing, shippingRate]);
+  const total = quote.total;
+  const sellerName = listing?.seller?.display_name || listing?.seller?.username || 'this seller';
 
   const validate = (): ShippingAddress | null => {
     if (![name, line1, city, state, postalCode].every((value) => value.trim())) {
@@ -92,7 +143,7 @@ export default function CheckoutScreen() {
     let orderId: string | null = null;
     try {
       const { data, error } = await supabase.functions.invoke('marketplace-checkout', {
-        body: { listing_id: listing.id, shipping_address: shippingAddress },
+        body: { listing_ids: items.map((item) => item.id), shipping_address: shippingAddress },
       });
       if (error) throw await functionError(error, 'Could not start checkout.');
       if (!data?.payment_intent_client_secret || !data?.publishable_key || !data?.order_id) {
@@ -125,6 +176,8 @@ export default function CheckoutScreen() {
       }
 
       // Refresh listings too, so the item no longer shows as for sale when going back.
+      setPaidItems(items);
+      if (isBundleCheckout) clearBundle();
       await Promise.all([refreshOrders(), refreshListings()]);
       Alert.alert('Payment received', 'Your purchase is confirmed. You can follow shipping in My Purchases.', [
         { text: 'View purchases', onPress: () => navigation.replace('Orders', { initialTab: 'Purchases' }) },
@@ -143,10 +196,10 @@ export default function CheckoutScreen() {
     }
   };
 
-  if (!listing) {
+  if (!listing || (!paidItems && items.length !== listingIds.length)) {
     return (
       <SafeAreaView style={styles.center}>
-        <Text style={styles.title}>This item is no longer available.</Text>
+        <Text style={styles.title}>{listing ? 'Something in this order is no longer available.' : 'This item is no longer available.'}</Text>
         <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}><Text style={styles.cancelText}>Go back</Text></TouchableOpacity>
       </SafeAreaView>
     );
@@ -167,8 +220,43 @@ export default function CheckoutScreen() {
           <View style={styles.totalCard}>
             <Text style={styles.totalEyebrow}>PAYMENT TOTAL</Text>
             <Text style={styles.total}>{formatUsd(total)}</Text>
-            <Text style={styles.totalNote}>USD · {listing.title}</Text>
+            <Text style={styles.totalNote}>USD · {items.length > 1 ? `${items.length} items from ${sellerName}` : listing.title}</Text>
           </View>
+
+          <View style={styles.itemsCard}>
+            {items.map((item) => (
+              <View key={item.id} style={styles.itemRow}>
+                <View style={styles.itemImageFrame}>
+                  {item.image_urls?.[0] ? <Image source={{ uri: item.image_urls[0] }} style={styles.itemImage} resizeMode="contain" /> : <Ionicons name="shirt-outline" size={20} color={Colors.mediumGray} />}
+                </View>
+                <View style={styles.itemCopy}>
+                  <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>
+                  <Text style={styles.itemMeta} numberOfLines={1}>
+                    {item.listing_kind === 'outfit' ? `Outfit · ${item.pieces?.length ?? 0} pieces` : [item.brand, item.size ? `Size ${item.size}` : null].filter(Boolean).join(' · ') || item.category}
+                  </Text>
+                </View>
+                <Text style={styles.itemPrice}>{formatUsd(item.price_cents)}</Text>
+                {isBundleCheckout && (
+                  <TouchableOpacity style={styles.removeButton} onPress={() => removeFromBundle(item.id)} disabled={processing} accessibilityLabel={`Remove ${item.title}`}>
+                    <Ionicons name="close" size={16} color={Colors.textSecondary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+            <View style={styles.divider} />
+            <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Items</Text><Text style={styles.summaryValue}>{formatUsd(quote.subtotal)}</Text></View>
+            {quote.discountCents > 0 && (
+              <View style={styles.summaryRow}><Text style={styles.discountLabel}>Bundle discount ({Math.round(quote.discountBps / 100)}%)</Text><Text style={styles.discountLabel}>−{formatUsd(quote.discountCents)}</Text></View>
+            )}
+            <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Shipping · {PACKAGE_SIZE_LABELS[quote.size]} package, tracked</Text><Text style={styles.summaryValue}>{formatUsd(quote.shipping)}</Text></View>
+          </View>
+
+          {isBundleCheckout && (
+            <TouchableOpacity style={styles.addMore} onPress={() => navigation.navigate('Marketplace', { sellerId: listing.seller_id })} disabled={processing}>
+              <Ionicons name="add-circle-outline" size={18} color={Colors.primaryDark} />
+              <Text style={styles.addMoreText}>Add more from {sellerName} · one shipping</Text>
+            </TouchableOpacity>
+          )}
 
           <Text style={styles.sectionTitle}>Shipping address</Text>
           <Text style={styles.sectionNote}>Available for United States delivery in this release.</Text>
@@ -219,6 +307,22 @@ const styles = StyleSheet.create({
   totalEyebrow: { color: Colors.primaryLight, fontSize: Typography.fontSize.xs, fontWeight: '800', letterSpacing: 1 },
   total: { marginTop: 4, color: Colors.white, fontSize: 38, fontWeight: '800' },
   totalNote: { marginTop: 4, color: Colors.lightGray, fontSize: Typography.fontSize.sm, textAlign: 'center' },
+  itemsCard: { marginTop: Spacing.md, padding: Spacing.md, gap: Spacing.sm, backgroundColor: Colors.white, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.cardBorder },
+  itemRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  itemImageFrame: { width: 44, height: 56, alignItems: 'center', justifyContent: 'center', borderRadius: BorderRadius.sm, backgroundColor: Colors.background, overflow: 'hidden' },
+  itemImage: { width: '100%', height: '100%' },
+  itemCopy: { flex: 1, minWidth: 0 },
+  itemTitle: { color: Colors.textPrimary, fontSize: Typography.fontSize.sm, fontWeight: '800' },
+  itemMeta: { marginTop: 2, color: Colors.textSecondary, fontSize: Typography.fontSize.xs },
+  itemPrice: { color: Colors.textPrimary, fontSize: Typography.fontSize.sm, fontWeight: '800' },
+  removeButton: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
+  divider: { height: 1, backgroundColor: Colors.cardBorder },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.sm },
+  summaryLabel: { flexShrink: 1, color: Colors.textSecondary, fontSize: Typography.fontSize.sm },
+  summaryValue: { color: Colors.textPrimary, fontSize: Typography.fontSize.sm, fontWeight: '700' },
+  discountLabel: { color: Colors.green, fontSize: Typography.fontSize.sm, fontWeight: '800' },
+  addMore: { marginTop: Spacing.sm, alignSelf: 'center', minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: Spacing.md },
+  addMoreText: { color: Colors.primaryDark, fontSize: Typography.fontSize.sm, fontWeight: '800' },
   sectionTitle: { marginTop: Spacing.xl, color: Colors.textPrimary, fontSize: Typography.fontSize.lg, fontWeight: '800' },
   sectionNote: { marginTop: 4, marginBottom: Spacing.base, color: Colors.textSecondary, fontSize: Typography.fontSize.sm },
   fieldWrap: { marginBottom: Spacing.md },

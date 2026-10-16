@@ -1,7 +1,14 @@
 import { requireUser, stripe, supabaseAdmin } from '../_shared/clients.ts';
 import { errorResponse, handleCors, jsonResponse } from '../_shared/http.ts';
+import { purchaseLabelForOrder, refundLabel } from '../_shared/shipping.ts';
 
-type OrderAction = 'mark_processing' | 'mark_shipped' | 'confirm_delivered' | 'cancel_checkout' | 'refund';
+type OrderAction =
+  | 'mark_processing'
+  | 'mark_shipped'
+  | 'confirm_delivered'
+  | 'cancel_checkout'
+  | 'refund'
+  | 'retry_label';
 
 type ActionRequest = {
   action?: OrderAction;
@@ -54,7 +61,11 @@ Deno.serve(async (request) => {
     } else if (body.action === 'mark_shipped') {
       if (!isSeller) throw new Error('Only the seller can ship this order.');
       if (!['paid', 'processing'].includes(order.status)) throw new Error('Only paid orders can be marked as shipped.');
-      if (!body.tracking_carrier?.trim() || !body.tracking_number?.trim()) {
+      // With a ModTok prepaid label the tracking is already known ("I dropped it off").
+      const usesLabel = order.label_status === 'purchased' && !body.tracking_number?.trim();
+      const carrier = usesLabel ? order.tracking_carrier : body.tracking_carrier?.trim();
+      const trackingNumber = usesLabel ? order.tracking_number : body.tracking_number?.trim();
+      if (!carrier || !trackingNumber) {
         throw new Error('Carrier and tracking number are required.');
       }
       const { error } = await supabaseAdmin
@@ -62,16 +73,17 @@ Deno.serve(async (request) => {
         .update({
           status: 'shipped',
           shipped_at: now,
-          tracking_carrier: body.tracking_carrier.trim(),
-          tracking_number: body.tracking_number.trim(),
-          tracking_url: body.tracking_url?.trim() || null,
+          tracking_carrier: carrier,
+          tracking_number: trackingNumber,
+          tracking_url: usesLabel ? order.tracking_url : body.tracking_url?.trim() || null,
         })
         .eq('id', order.id)
         .in('status', ['paid', 'processing']);
       if (error) throw error;
       await writeEvent(order.id, 'seller_marked_shipped', user.id, {
-        carrier: body.tracking_carrier.trim(),
-        tracking_number: body.tracking_number.trim(),
+        carrier,
+        tracking_number: trackingNumber,
+        prepaid_label: usesLabel,
       });
     } else if (body.action === 'confirm_delivered') {
       if (!isBuyer) throw new Error('Only the buyer can confirm delivery.');
@@ -88,21 +100,17 @@ Deno.serve(async (request) => {
       if (order.status !== 'pending_payment') throw new Error('This checkout can no longer be canceled.');
       if (order.stripe_payment_intent_id) {
         const intent = await stripe.paymentIntents.retrieve(order.stripe_payment_intent_id);
-        if (!['succeeded', 'canceled'].includes(intent.status)) {
+        if (intent.status === 'succeeded') throw new Error('This payment already went through.');
+        if (intent.status !== 'canceled') {
           await stripe.paymentIntents.cancel(intent.id);
         }
       }
-      const { error } = await supabaseAdmin
-        .from('orders')
-        .update({ status: 'canceled', canceled_at: now })
-        .eq('id', order.id)
-        .eq('status', 'pending_payment');
+      // Cancels the checkout and puts every listing it held back on sale.
+      const { error } = await supabaseAdmin.rpc('release_order_reservation', {
+        p_order_id: order.id,
+        p_event: 'checkout_canceled',
+      });
       if (error) throw error;
-      await supabaseAdmin
-        .from('marketplace_listings')
-        .update({ status: 'active', reserved_until: null })
-        .eq('id', order.listing_id)
-        .eq('status', 'reserved');
       await writeEvent(order.id, 'buyer_canceled_checkout', user.id);
     } else if (body.action === 'refund') {
       if (!isSeller) throw new Error('Only the seller can issue this refund.');
@@ -130,10 +138,18 @@ Deno.serve(async (request) => {
         );
         await supabaseAdmin.from('orders').update({ stripe_refund_id: refund.id }).eq('id', order.id);
         await writeEvent(order.id, 'seller_requested_refund', user.id, { stripe_refund_id: refund.id });
+        // An unused prepaid label is refunded by the carrier too.
+        if (!order.shipped_at) await refundLabel(order.id);
       } catch (refundError) {
         await supabaseAdmin.from('orders').update({ status: order.status }).eq('id', order.id);
         throw refundError;
       }
+    } else if (body.action === 'retry_label') {
+      if (!isSeller) throw new Error('Only the seller can get the shipping label.');
+      if (!['paid', 'processing'].includes(order.status)) throw new Error('A label can only be made for a paid order that has not shipped.');
+      if (order.label_status === 'purchased') throw new Error('This order already has a label.');
+      if (order.label_status === 'pending') throw new Error('The label is being created. Pull down to refresh in a moment.');
+      await purchaseLabelForOrder(order.id);
     } else {
       throw new Error('Unsupported order action.');
     }
@@ -147,7 +163,7 @@ Deno.serve(async (request) => {
     return jsonResponse({ order: updated });
   } catch (error) {
     console.error('marketplace-order-action error', error);
-    const message = error instanceof Error ? error.message : 'Order could not be updated.';
+    const message = error instanceof Error ? error.message : (error as any)?.message ?? 'Order could not be updated.';
     const status = message.includes('signed in') || message.includes('session') ? 401 : message.includes('access') ? 403 : 400;
     return errorResponse(message, status);
   }

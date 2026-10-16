@@ -1,5 +1,15 @@
 import Stripe from 'npm:stripe@22.0.0';
 import { stripe, supabaseAdmin } from '../_shared/clients.ts';
+import { purchaseLabelForOrder, refundLabel } from '../_shared/shipping.ts';
+
+declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void } | undefined;
+
+// Buying a label calls Shippo, which can take a few seconds. Let Stripe get its
+// answer right away and finish the label in the background.
+function runInBackground(task: Promise<unknown>) {
+  const guarded = task.catch((error) => console.error('Background task failed', error));
+  if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime?.waitUntil) EdgeRuntime.waitUntil(guarded);
+}
 
 const cryptoProvider = Stripe.createSubtleCryptoProvider();
 
@@ -13,29 +23,12 @@ async function addOrderEvent(orderId: string, eventType: string, metadata: Recor
 }
 
 async function releaseListing(orderId: string, reason: string) {
-  const { data: order, error } = await supabaseAdmin
-    .from('orders')
-    .select('id, listing_id, status')
-    .eq('id', orderId)
-    .maybeSingle();
+  // Cancels the checkout and puts every listing it held (items, outfit pieces) back on sale.
+  const { error } = await supabaseAdmin.rpc('release_order_reservation', {
+    p_order_id: orderId,
+    p_event: reason,
+  });
   if (error) throw error;
-  if (!order || order.status !== 'pending_payment') return;
-
-  const now = new Date().toISOString();
-  const { error: orderError } = await supabaseAdmin
-    .from('orders')
-    .update({ status: 'canceled', canceled_at: now })
-    .eq('id', order.id)
-    .eq('status', 'pending_payment');
-  if (orderError) throw orderError;
-
-  const { error: listingError } = await supabaseAdmin
-    .from('marketplace_listings')
-    .update({ status: 'active', reserved_until: null })
-    .eq('id', order.listing_id)
-    .eq('status', 'reserved');
-  if (listingError) throw listingError;
-  await addOrderEvent(order.id, reason);
 }
 
 async function findOrderByPaymentIntent(paymentIntentId: string) {
@@ -76,23 +69,17 @@ async function processEvent(event: Stripe.Event) {
       const orderId = intent.metadata?.modtok_order_id;
       if (!orderId) break;
       const chargeId = typeof intent.latest_charge === 'string' ? intent.latest_charge : intent.latest_charge?.id;
-      const now = new Date().toISOString();
-      const { data: order, error } = await supabaseAdmin
-        .from('orders')
-        .update({ status: 'paid', paid_at: now, stripe_charge_id: chargeId ?? null })
-        .eq('id', orderId)
-        .in('status', ['pending_payment', 'processing'])
-        .select('id, listing_id')
-        .maybeSingle();
+      // Marks the order paid, the purchased listings sold, and unlists linked listings
+      // (the separate pieces of a sold outfit, or the outfit a sold piece belonged to).
+      const { data: order, error } = await supabaseAdmin.rpc('complete_order_payment', {
+        p_order_id: orderId,
+        p_charge_id: chargeId ?? null,
+      });
       if (error) throw error;
-      if (!order) break;
+      if (!order?.id) break;
 
-      const { error: listingError } = await supabaseAdmin
-        .from('marketplace_listings')
-        .update({ status: 'sold', sold_at: now, reserved_until: null })
-        .eq('id', order.listing_id);
-      if (listingError) throw listingError;
       await addOrderEvent(order.id, 'payment_succeeded', { stripe_event_id: event.id });
+      runInBackground(purchaseLabelForOrder(order.id));
       break;
     }
 
@@ -131,6 +118,7 @@ async function processEvent(event: Stripe.Event) {
         amount_refunded: charge.amount_refunded,
         stripe_event_id: event.id,
       });
+      if (isFullRefund && !order.shipped_at) runInBackground(refundLabel(order.id));
       break;
     }
 

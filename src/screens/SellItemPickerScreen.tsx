@@ -18,7 +18,8 @@ import { useNavigation } from '@react-navigation/native';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
 import { ClothingItem, useCloset } from '../context/ClosetContext';
 import { useMarketplace } from '../context/MarketplaceContext';
-import { CONDITION_LABELS, ListingCondition } from '../types/marketplace';
+import PackageSizePicker from '../components/PackageSizePicker';
+import { CONDITION_LABELS, ListingCondition, PackageSize, defaultPackageSize } from '../types/marketplace';
 
 type SellCategory = { name: string; icon: keyof typeof Ionicons.glyphMap };
 
@@ -50,21 +51,31 @@ function sellerReceives(priceText: string): string {
 export default function SellItemPickerScreen() {
   const navigation = useNavigation<any>();
   const { items } = useCloset();
-  const { createListing, myListings, sellerStatus } = useMarketplace();
+  const { createListing, myListings, sellerStatus, shipFrom } = useMarketplace();
   const [step, setStep] = useState<'category' | 'item' | 'details'>('category');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<ClothingItem | null>(null);
   const [listingPrice, setListingPrice] = useState('');
-  const [shippingPrice, setShippingPrice] = useState('');
+  const [packageSize, setPackageSize] = useState<PackageSize>('medium');
   const [description, setDescription] = useState('');
   const [condition, setCondition] = useState<ListingCondition>('good');
   const [saving, setSaving] = useState(false);
 
   const sellerReady = sellerStatus.details_submitted && sellerStatus.charges_enabled && sellerStatus.payouts_enabled;
-  const openItemIds = useMemo(
-    () => new Set(myListings.filter((listing) => ['draft', 'active', 'reserved'].includes(listing.status)).map((listing) => listing.closet_item_id)),
-    [myListings],
-  );
+  // Hide pieces that are already listed, and pieces of outfits that sell only as a whole.
+  const openItemIds = useMemo(() => {
+    const ids = new Set<string | null>();
+    for (const listing of myListings) {
+      if (!['draft', 'active', 'reserved'].includes(listing.status)) continue;
+      if (listing.closet_item_id) ids.add(listing.closet_item_id);
+      if (listing.listing_kind === 'outfit') {
+        for (const piece of listing.pieces ?? []) {
+          if (!piece.piece_listing_id && piece.closet_item_id) ids.add(piece.closet_item_id);
+        }
+      }
+    }
+    return ids;
+  }, [myListings]);
   const categoryItems = useMemo(
     () => selectedCategory ? items.filter((item) => item.category === selectedCategory && !openItemIds.has(item.id)) : [],
     [items, openItemIds, selectedCategory],
@@ -79,13 +90,13 @@ export default function SellItemPickerScreen() {
     setSelectedItem(item);
     setListingPrice(item.salePrice ? String(item.salePrice) : '');
     setDescription(item.notes ?? '');
+    setPackageSize(defaultPackageSize(item.category));
     setStep('details');
   };
 
   const saveListing = async () => {
     if (!selectedItem) return;
     const price = Number(listingPrice.replace(',', '.'));
-    const shipping = shippingPrice.trim() ? Number(shippingPrice.replace(',', '.')) : 0;
     const imageUrl = itemImage(selectedItem);
     if (!sellerReady) {
       Alert.alert('Complete seller setup', 'Connect your Stripe payout account on the Sell page before publishing an item.');
@@ -99,8 +110,11 @@ export default function SellItemPickerScreen() {
       Alert.alert('Add a price', 'Enter a sale price of at least $1.00 USD.');
       return;
     }
-    if (!Number.isFinite(shipping) || shipping < 0) {
-      Alert.alert('Check shipping price', 'Shipping must be $0 or more.');
+    if (!shipFrom) {
+      Alert.alert('Add your ship-from address', 'ModTok prints it on the prepaid shipping label when this item sells.', [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Add address', onPress: () => navigation.navigate('SellerShipping') },
+      ]);
       return;
     }
 
@@ -116,7 +130,7 @@ export default function SellItemPickerScreen() {
         condition,
         image_urls: [imageUrl],
         price_cents: Math.round(price * 100),
-        shipping_price_cents: Math.round(shipping * 100),
+        package_size: packageSize,
       });
       Alert.alert('Listing is live', `${selectedItem.name} is now available in the ModTok marketplace.`, [
         { text: 'Done', onPress: () => navigation.goBack() },
@@ -216,13 +230,15 @@ export default function SellItemPickerScreen() {
             <Text style={styles.fieldLabel}>SALE PRICE (USD)</Text>
             <View style={styles.priceField}><Text style={styles.priceSymbol}>$</Text><TextInput style={styles.priceInput} placeholder="0.00" placeholderTextColor={Colors.mediumGray} keyboardType="decimal-pad" value={listingPrice} onChangeText={setListingPrice} returnKeyType="done" /></View>
 
-            <Text style={styles.fieldLabel}>SHIPPING PRICE (USD)</Text>
-            <View style={styles.priceField}><Text style={styles.priceSymbol}>$</Text><TextInput style={styles.priceInput} placeholder="0.00 for free shipping" placeholderTextColor={Colors.mediumGray} keyboardType="decimal-pad" value={shippingPrice} onChangeText={setShippingPrice} returnKeyType="done" /></View>
-            <Text style={styles.priceHint}>The buyer sees one total in USD. You will add carrier and tracking after the sale.</Text>
+            <Text style={styles.fieldLabel}>PACKAGE SIZE</Text>
+            <PackageSizePicker value={packageSize} onChange={setPackageSize} />
             <Text style={styles.priceHint}>
-              ModTok keeps a 10% fee on the sale price (not on shipping).
+              The buyer pays shipping. When it sells, ModTok sends you a prepaid label: print it, pack the item, and drop it off.
+            </Text>
+            <Text style={styles.priceHint}>
+              ModTok keeps a 10% fee on the sale price.
               {Number(listingPrice.replace(',', '.')) >= 1
-                ? ` You receive $${sellerReceives(listingPrice)} plus shipping.`
+                ? ` You receive $${sellerReceives(listingPrice)}.`
                 : ''}
             </Text>
             <View style={{ height: 20 }} />

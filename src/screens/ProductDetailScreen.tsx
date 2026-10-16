@@ -12,41 +12,60 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { useMarketplace } from '../context/MarketplaceContext';
+import { LISTING_SELECT, useMarketplace } from '../context/MarketplaceContext';
 import { supabase } from '../lib/supabase';
-import { CONDITION_LABELS, MarketplaceListing, formatUsd } from '../types/marketplace';
+import { CONDITION_LABELS, MarketplaceListing, PACKAGE_SIZE_LABELS, formatUsd } from '../types/marketplace';
 import { BorderRadius, Colors, Spacing, Typography } from '../theme';
-
-const DETAIL_SELECT = `
-  *,
-  seller:profiles!marketplace_listings_seller_id_fkey(id, username, display_name, avatar_url)
-`;
 
 export default function ProductDetailScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const listingId = route.params?.listingId as string;
-  const { listings, myListings, reportListing, blockSeller } = useMarketplace();
+  const {
+    listings,
+    myListings,
+    reportListing,
+    blockSeller,
+    bundle,
+    addToBundle,
+    startBundleWith,
+  } = useMarketplace();
   const [listing, setListing] = useState<MarketplaceListing | null>(
     [...listings, ...myListings].find((item) => item.id === listingId) ?? null,
   );
   const [loading, setLoading] = useState(!listing);
   const [viewerId, setViewerId] = useState<string | null>(null);
+  const [parentOutfit, setParentOutfit] = useState<MarketplaceListing | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setViewerId(data.user?.id ?? null));
     if (listing) return;
     supabase
       .from('marketplace_listings')
-      .select(DETAIL_SELECT)
+      .select(LISTING_SELECT)
       .eq('id', listingId)
       .single()
       .then(({ data, error }) => {
         if (error) console.error('Product detail load failed:', error);
-        setListing((data as unknown as MarketplaceListing) ?? null);
+        const row = (data as unknown as MarketplaceListing) ?? null;
+        if (row?.pieces) row.pieces = row.pieces.slice().sort((a, b) => a.position - b.position);
+        setListing(row);
         setLoading(false);
       });
   }, [listing, listingId]);
+
+  // If this piece is also part of an outfit for sale, offer the whole look.
+  useEffect(() => {
+    if (!listing || listing.listing_kind === 'outfit') return;
+    supabase
+      .from('marketplace_outfit_pieces')
+      .select('outfit_listing_id')
+      .eq('piece_listing_id', listing.id)
+      .then(({ data }) => {
+        const outfitIds = new Set((data ?? []).map((row: any) => row.outfit_listing_id));
+        setParentOutfit(listings.find((item) => outfitIds.has(item.id) && item.status === 'active') ?? null);
+      });
+  }, [listing, listings]);
 
   const total = useMemo(
     () => listing ? listing.price_cents + listing.shipping_price_cents : 0,
@@ -106,6 +125,31 @@ export default function ProductDetailScreen() {
   }
 
   const isOwner = viewerId === listing.seller_id;
+  const isOutfit = listing.listing_kind === 'outfit';
+  const inBundle = Boolean(bundle?.listingIds.includes(listing.id));
+
+  const onAddToBundle = () => {
+    const result = addToBundle(listing);
+    if (result === 'other_seller') {
+      Alert.alert(
+        'Start a new bundle?',
+        'A bundle holds items from one seller, so they ship together in one package. Your current bundle will be cleared.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Start new bundle', onPress: () => startBundleWith(listing) },
+        ],
+      );
+      return;
+    }
+    Alert.alert(
+      result === 'already' ? 'Already in your bundle' : 'Added to your bundle',
+      'Add more from this seller and pay one shipping for everything.',
+      [
+        { text: 'Keep shopping', onPress: () => navigation.navigate('Marketplace', { sellerId: listing.seller_id }) },
+        { text: 'Review bundle', onPress: () => navigation.navigate('Checkout', { listingIds: (bundle?.listingIds.includes(listing.id) ? bundle.listingIds : [...(bundle?.listingIds ?? []), listing.id]) }) },
+      ],
+    );
+  };
   const sellerName = listing.seller?.display_name || listing.seller?.username || 'ModTok seller';
   const available = listing.status === 'active';
 
@@ -151,6 +195,51 @@ export default function ProductDetailScreen() {
 
         {!!listing.description && <Text style={styles.description}>{listing.description}</Text>}
 
+        {isOutfit && (listing.pieces?.length ?? 0) > 0 && (
+          <View style={styles.piecesCard}>
+            <Text style={styles.piecesTitle}>In this outfit · {listing.pieces!.length} pieces</Text>
+            <Text style={styles.piecesNote}>
+              {listing.allow_separate_sale ? 'Get the whole look here, or tap a piece to buy it on its own.' : 'Sold together as one complete look.'}
+            </Text>
+            {listing.pieces!.map((piece) => {
+              const pieceListing = piece.piece_listing_id ? listings.find((item) => item.id === piece.piece_listing_id) : null;
+              return (
+                <TouchableOpacity
+                  key={`${piece.outfit_listing_id}-${piece.position}`}
+                  style={styles.pieceRow}
+                  disabled={!pieceListing}
+                  onPress={() => pieceListing && navigation.push('ProductDetail', { listingId: pieceListing.id })}
+                >
+                  <View style={styles.pieceImageFrame}>
+                    {piece.image_url ? <Image source={{ uri: piece.image_url }} style={styles.image} resizeMode="contain" /> : <Ionicons name="shirt-outline" size={22} color={Colors.mediumGray} />}
+                  </View>
+                  <View style={styles.pieceCopy}>
+                    <Text style={styles.pieceName} numberOfLines={1}>{piece.title}</Text>
+                    <Text style={styles.pieceMeta} numberOfLines={1}>{[piece.brand, piece.category, piece.size ? `Size ${piece.size}` : null].filter(Boolean).join(' · ')}</Text>
+                  </View>
+                  {pieceListing && (
+                    <>
+                      <Text style={styles.piecePrice}>{formatUsd(pieceListing.price_cents)}</Text>
+                      <Ionicons name="chevron-forward" size={17} color={Colors.textSecondary} />
+                    </>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        {parentOutfit && (
+          <TouchableOpacity style={styles.parentOutfit} onPress={() => navigation.push('ProductDetail', { listingId: parentOutfit.id })}>
+            <Ionicons name="albums-outline" size={22} color={Colors.primary} />
+            <View style={styles.pieceCopy}>
+              <Text style={styles.pieceName}>Part of the outfit "{parentOutfit.title}"</Text>
+              <Text style={styles.pieceMeta}>Get the whole look for {formatUsd(parentOutfit.price_cents)}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={17} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        )}
+
         <View style={styles.sellerCard}>
           <View style={styles.avatar}>
             {listing.seller?.avatar_url ? <Image source={{ uri: listing.seller.avatar_url }} style={styles.avatarImage} /> : <Ionicons name="person" size={21} color={Colors.white} />}
@@ -164,7 +253,7 @@ export default function ProductDetailScreen() {
 
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Item</Text><Text style={styles.summaryValue}>{formatUsd(listing.price_cents)}</Text></View>
-          <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Shipping</Text><Text style={styles.summaryValue}>{listing.shipping_price_cents ? formatUsd(listing.shipping_price_cents) : 'Free'}</Text></View>
+          <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Shipping · {PACKAGE_SIZE_LABELS[listing.package_size ?? 'medium']} package</Text><Text style={styles.summaryValue}>{formatUsd(listing.shipping_price_cents)}</Text></View>
           <View style={styles.divider} />
           <View style={styles.summaryRow}><Text style={styles.totalLabel}>Total before tax</Text><Text style={styles.totalValue}>{formatUsd(total)}</Text></View>
         </View>
@@ -173,20 +262,26 @@ export default function ProductDetailScreen() {
           <Ionicons name="lock-closed-outline" size={23} color={Colors.primary} />
           <View style={styles.protectionCopy}>
             <Text style={styles.protectionTitle}>Secure ModTok checkout</Text>
-            <Text style={styles.protectionText}>Pay securely in USD. The seller receives your shipping address only after payment is confirmed.</Text>
+            <Text style={styles.protectionText}>Pay securely in USD. The seller gets a prepaid, tracked label after payment, and you can follow the package in My Purchases.</Text>
           </View>
         </View>
         <View style={{ height: 110 }} />
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.cancelButtonText}>Cancel</Text>
-        </TouchableOpacity>
+        {!isOwner && available ? (
+          <TouchableOpacity style={styles.cancelButton} onPress={onAddToBundle}>
+            <Text style={styles.cancelButtonText}>{inBundle ? 'In bundle ✓' : 'Add to bundle'}</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
+            <Text style={styles.cancelButtonText}>Back</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={[styles.buyButton, (!available || isOwner) && styles.disabledButton]}
           disabled={!available || isOwner}
-          onPress={() => navigation.navigate('Checkout', { listingId: listing.id })}
+          onPress={() => navigation.navigate('Checkout', { listingIds: [listing.id] })}
         >
           <Text style={styles.buyButtonText}>{isOwner ? 'Your listing' : available ? `Buy · ${formatUsd(total)}` : 'Unavailable'}</Text>
         </TouchableOpacity>
@@ -219,6 +314,16 @@ const styles = StyleSheet.create({
   sellerCopy: { flex: 1, marginLeft: Spacing.md },
   sellerLabel: { color: Colors.textSecondary, fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
   sellerName: { marginTop: 2, color: Colors.textPrimary, fontSize: Typography.fontSize.base, fontWeight: '800' },
+  piecesCard: { marginTop: Spacing.lg, padding: Spacing.md, backgroundColor: Colors.white, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.cardBorder },
+  piecesTitle: { color: Colors.textPrimary, fontSize: Typography.fontSize.base, fontWeight: '800' },
+  piecesNote: { marginTop: 3, marginBottom: Spacing.sm, color: Colors.textSecondary, fontSize: Typography.fontSize.xs, lineHeight: 17 },
+  pieceRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.xs, borderTopWidth: 1, borderTopColor: Colors.cardBorder },
+  pieceImageFrame: { width: 46, height: 58, alignItems: 'center', justifyContent: 'center', borderRadius: BorderRadius.sm, backgroundColor: Colors.background, overflow: 'hidden' },
+  pieceCopy: { flex: 1, minWidth: 0 },
+  pieceName: { color: Colors.textPrimary, fontSize: Typography.fontSize.sm, fontWeight: '800' },
+  pieceMeta: { marginTop: 2, color: Colors.textSecondary, fontSize: Typography.fontSize.xs },
+  piecePrice: { color: Colors.primaryDark, fontSize: Typography.fontSize.sm, fontWeight: '800' },
+  parentOutfit: { marginTop: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, borderRadius: BorderRadius.lg, backgroundColor: '#F9E5E1' },
   summaryCard: { marginTop: Spacing.md, padding: Spacing.base, backgroundColor: Colors.white, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.cardBorder, gap: Spacing.sm },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   summaryLabel: { color: Colors.textSecondary, fontSize: Typography.fontSize.sm },

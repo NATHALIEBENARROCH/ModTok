@@ -11,12 +11,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useMarketplace } from '../context/MarketplaceContext';
 import { MarketplaceListing, formatUsd } from '../types/marketplace';
 import { BorderRadius, Colors, Spacing, Typography } from '../theme';
 
-function ListingCard({ listing, onPress }: { listing: MarketplaceListing; onPress: () => void }) {
+function ListingCard({ listing, onPress, inBundle }: { listing: MarketplaceListing; onPress: () => void; inBundle: boolean }) {
   const image = listing.image_urls?.[0];
   const sellerName = listing.seller?.display_name || listing.seller?.username || 'ModTok seller';
   return (
@@ -28,11 +28,22 @@ function ListingCard({ listing, onPress }: { listing: MarketplaceListing; onPres
           <Ionicons name="shirt-outline" size={42} color={Colors.mediumGray} />
         )}
       </View>
+      {listing.listing_kind === 'outfit' && (
+        <View style={styles.outfitBadge}>
+          <Ionicons name="albums" size={11} color={Colors.white} />
+          <Text style={styles.outfitBadgeText}>{listing.pieces?.length ?? 0} pieces</Text>
+        </View>
+      )}
+      {inBundle && (
+        <View style={styles.bundleBadge}>
+          <Ionicons name="checkmark" size={12} color={Colors.white} />
+        </View>
+      )}
       <Text style={styles.cardTitle} numberOfLines={1}>{listing.title}</Text>
       <Text style={styles.cardMeta} numberOfLines={1}>{listing.brand || listing.category} · {sellerName}</Text>
       <View style={styles.priceRow}>
         <Text style={styles.price}>{formatUsd(listing.price_cents)}</Text>
-        <Text style={styles.shipping}>{listing.shipping_price_cents ? `+ ${formatUsd(listing.shipping_price_cents)} ship` : 'Free shipping'}</Text>
+        <Text style={styles.shipping}>+ {formatUsd(listing.shipping_price_cents)} shipping</Text>
       </View>
     </TouchableOpacity>
   );
@@ -40,7 +51,9 @@ function ListingCard({ listing, onPress }: { listing: MarketplaceListing; onPres
 
 export default function MarketplaceScreen() {
   const navigation = useNavigation<any>();
-  const { listings, loading, refreshListings } = useMarketplace();
+  const route = useRoute<any>();
+  const { listings, loading, refreshListings, bundle } = useMarketplace();
+  const [sellerFilter, setSellerFilter] = useState<string | null>(route.params?.sellerId ?? null);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
 
@@ -56,11 +69,18 @@ export default function MarketplaceScreen() {
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return listings.filter((listing) => {
+      if (sellerFilter && listing.seller_id !== sellerFilter) return false;
       const inCategory = category === 'All' || listing.category === category;
       const searchable = `${listing.title} ${listing.brand ?? ''} ${listing.category} ${listing.description}`.toLowerCase();
       return inCategory && (!normalized || searchable.includes(normalized));
     });
-  }, [category, listings, query]);
+  }, [category, listings, query, sellerFilter]);
+
+  const sellerFilterName = useMemo(() => {
+    if (!sellerFilter) return null;
+    const seller = listings.find((listing) => listing.seller_id === sellerFilter)?.seller;
+    return seller?.display_name || seller?.username || 'this seller';
+  }, [listings, sellerFilter]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -96,6 +116,16 @@ export default function MarketplaceScreen() {
         />
       </View>
 
+      {sellerFilterName && (
+        <View style={styles.sellerFilter}>
+          <Ionicons name="person-circle-outline" size={18} color={Colors.textPrimary} />
+          <Text style={styles.sellerFilterText} numberOfLines={1}>Shopping {sellerFilterName}'s closet</Text>
+          <TouchableOpacity onPress={() => setSellerFilter(null)} accessibilityLabel="Show all sellers">
+            <Ionicons name="close-circle" size={20} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+      )}
+
       <FlatList
         horizontal
         data={categories}
@@ -122,7 +152,11 @@ export default function MarketplaceScreen() {
         refreshControl={<RefreshControl refreshing={loading} onRefresh={refreshListings} tintColor={Colors.primary} />}
         showsVerticalScrollIndicator={false}
         renderItem={({ item }) => (
-          <ListingCard listing={item} onPress={() => navigation.navigate('ProductDetail', { listingId: item.id })} />
+          <ListingCard
+            listing={item}
+            inBundle={Boolean(bundle?.listingIds.includes(item.id))}
+            onPress={() => navigation.navigate('ProductDetail', { listingId: item.id })}
+          />
         )}
         ListEmptyComponent={
           <View style={styles.emptyState}>
@@ -135,6 +169,21 @@ export default function MarketplaceScreen() {
         }
         ListFooterComponent={<View style={{ height: 120 }} />}
       />
+
+      {bundle && (
+        <TouchableOpacity
+          style={styles.bundleBar}
+          onPress={() => navigation.navigate('Checkout', { listingIds: bundle.listingIds })}
+          activeOpacity={0.9}
+        >
+          <Ionicons name="bag-check" size={20} color={Colors.white} />
+          <Text style={styles.bundleBarText}>
+            Bundle · {bundle.listingIds.length} {bundle.listingIds.length === 1 ? 'item' : 'items'}
+          </Text>
+          <Text style={styles.bundleBarAction}>Review</Text>
+          <Ionicons name="chevron-forward" size={18} color={Colors.white} />
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 }
@@ -162,6 +211,14 @@ const styles = StyleSheet.create({
   card: { flex: 1, minWidth: 0, marginBottom: Spacing.lg },
   imageFrame: { width: '100%', aspectRatio: 0.72, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.white, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' },
   image: { width: '100%', height: '100%' },
+  outfitBadge: { position: 'absolute', top: Spacing.sm, left: Spacing.sm, flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 4, borderRadius: BorderRadius.pill, backgroundColor: Colors.black },
+  outfitBadgeText: { color: Colors.white, fontSize: 10, fontWeight: '800' },
+  bundleBadge: { position: 'absolute', top: Spacing.sm, right: Spacing.sm, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary },
+  sellerFilter: { marginHorizontal: Spacing.base, marginTop: Spacing.md, minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: BorderRadius.pill, backgroundColor: '#F9E5E1' },
+  sellerFilterText: { flex: 1, color: Colors.textPrimary, fontSize: Typography.fontSize.sm, fontWeight: '700' },
+  bundleBar: { position: 'absolute', left: Spacing.base, right: Spacing.base, bottom: Spacing.xl, minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.base, borderRadius: BorderRadius.pill, backgroundColor: Colors.black },
+  bundleBarText: { flex: 1, color: Colors.white, fontSize: Typography.fontSize.base, fontWeight: '800' },
+  bundleBarAction: { color: Colors.primaryLight, fontSize: Typography.fontSize.sm, fontWeight: '800' },
   cardTitle: { marginTop: Spacing.sm, color: Colors.textPrimary, fontSize: Typography.fontSize.sm, fontWeight: '800' },
   cardMeta: { marginTop: 2, color: Colors.textSecondary, fontSize: Typography.fontSize.xs, lineHeight: 16 },
   priceRow: { marginTop: 5 },

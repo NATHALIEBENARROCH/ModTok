@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useMarketplace } from '../context/MarketplaceContext';
 import { useOutfit } from '../context/OutfitContext';
-import { MarketplaceListing, formatUsd } from '../types/marketplace';
+import { MarketplaceListing, PACKAGE_SIZE_LABELS, formatUsd } from '../types/marketplace';
 import { BorderRadius, Colors, Spacing, Typography } from '../theme';
 
 type SellTab = 'Active' | 'Sold' | 'Archived';
@@ -28,10 +28,21 @@ function ListingCard({ listing, onShare, onArchive }: { listing: MarketplaceList
         {image ? <Image source={{ uri: image }} style={styles.listingImage} resizeMode="contain" /> : <Ionicons name="shirt-outline" size={38} color={Colors.mediumGray} />}
       </View>
       <View style={styles.listingCopy}>
+        {listing.listing_kind === 'outfit' && (
+          <View style={styles.outfitBadge}>
+            <Text style={styles.outfitBadgeText}>OUTFIT · {listing.pieces?.length ?? 0} PIECES</Text>
+          </View>
+        )}
         <Text style={styles.listingTitle} numberOfLines={2}>{listing.title}</Text>
-        <Text style={styles.listingMeta}>{listing.category}{listing.size ? ` · ${listing.size}` : ''}</Text>
+        <Text style={styles.listingMeta}>
+          {listing.listing_kind === 'outfit'
+            ? listing.allow_separate_sale ? 'Pieces also sold separately' : 'Sold as a whole'
+            : `${listing.category}${listing.size ? ` · ${listing.size}` : ''}`}
+        </Text>
         <Text style={styles.listingPrice}>{formatUsd(listing.price_cents)}</Text>
-        <Text style={styles.listingShipping}>{listing.shipping_price_cents ? `${formatUsd(listing.shipping_price_cents)} shipping` : 'Free shipping'}</Text>
+        <Text style={styles.listingShipping}>
+          {PACKAGE_SIZE_LABELS[listing.package_size ?? 'medium']} package · buyer pays {formatUsd(listing.shipping_price_cents)}
+        </Text>
       </View>
       <View style={styles.listingActions}>
         {listing.status === 'active' && (
@@ -63,6 +74,7 @@ export default function SellScreen() {
     startSellerOnboarding,
     openSellerDashboard,
     archiveListing,
+    shipFrom,
   } = useMarketplace();
   const { createShareStory } = useOutfit();
   const [activeTab, setActiveTab] = useState<SellTab>('Active');
@@ -113,6 +125,17 @@ export default function SellScreen() {
     navigation.navigate('SellItemPicker');
   };
 
+  const listOutfit = () => {
+    if (!sellerReady) {
+      Alert.alert('Set up seller payouts first', 'Stripe verifies sellers and sends proceeds to their bank account.', [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Set up payouts', onPress: openStripe },
+      ]);
+      return;
+    }
+    navigation.navigate('SellOutfit');
+  };
+
   const unlist = (listing: MarketplaceListing) => {
     Alert.alert('Unlist this item?', 'It will immediately disappear from the marketplace.', [
       { text: 'Cancel', style: 'cancel' },
@@ -155,7 +178,7 @@ export default function SellScreen() {
       <View style={styles.header}>
         <View style={styles.headerSpacer} />
         <Text style={styles.title}>Sell</Text>
-        <TouchableOpacity style={styles.infoButton} onPress={() => Alert.alert('How selling works', 'Set up Stripe payouts, list a wardrobe item in USD, then ship it when a buyer pays.')}>
+        <TouchableOpacity style={styles.infoButton} onPress={() => Alert.alert('How selling works', 'Set up Stripe payouts and your ship-from address, then list a piece or a whole outfit. When it sells, print the prepaid label from My Sales and drop the package off.')}>
           <Ionicons name="information-circle-outline" size={23} color={Colors.textPrimary} />
         </TouchableOpacity>
       </View>
@@ -185,10 +208,25 @@ export default function SellScreen() {
               <TouchableOpacity style={styles.ordersButton} onPress={() => navigation.navigate('Orders', { initialTab: 'Sales' })}><Ionicons name="cube-outline" size={18} color={Colors.white} /><Text style={styles.ordersText}>My Sales</Text></TouchableOpacity>
             </View>
 
+            <TouchableOpacity style={styles.shippingCard} onPress={() => navigation.navigate('SellerShipping')} activeOpacity={0.84}>
+              <Ionicons name={shipFrom ? 'cube' : 'cube-outline'} size={22} color={shipFrom ? Colors.green : Colors.primary} />
+              <View style={styles.sellerCopy}>
+                <Text style={styles.shippingTitle}>{shipFrom ? 'Shipping & bundles' : 'Add your ship-from address'}</Text>
+                <Text style={styles.shippingText} numberOfLines={1}>
+                  {shipFrom ? `Labels ship from ${shipFrom.city}, ${shipFrom.state}` : 'Needed for prepaid shipping labels'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+            </TouchableOpacity>
+
             <View style={styles.quickActions}>
-              <TouchableOpacity style={styles.marketButton} onPress={() => navigation.navigate('Marketplace')}><Ionicons name="bag-handle-outline" size={19} color={Colors.textPrimary} /><Text style={styles.marketButtonText}>Browse marketplace</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.marketButton} onPress={listOutfit}><Ionicons name="albums-outline" size={19} color={Colors.textPrimary} /><Text style={styles.marketButtonText}>Sell an Outfit</Text></TouchableOpacity>
               <TouchableOpacity style={styles.listButton} onPress={listItem}><Ionicons name="add" size={20} color={Colors.white} /><Text style={styles.listButtonText}>List an Item</Text></TouchableOpacity>
             </View>
+            <TouchableOpacity style={styles.browseLink} onPress={() => navigation.navigate('Marketplace')}>
+              <Ionicons name="bag-handle-outline" size={16} color={Colors.primaryDark} />
+              <Text style={styles.browseLinkText}>Browse marketplace</Text>
+            </TouchableOpacity>
 
             <View style={styles.tabs}>
               {(['Active', 'Sold', 'Archived'] as SellTab[]).map((tab) => (
@@ -234,6 +272,13 @@ const styles = StyleSheet.create({
   earningsAmount: { marginTop: 2, color: Colors.textPrimary, fontSize: Typography.fontSize.xxl, fontWeight: '800' },
   ordersButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: Spacing.md, borderRadius: BorderRadius.pill, backgroundColor: Colors.black },
   ordersText: { color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: '800' },
+  shippingCard: { marginTop: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, borderRadius: BorderRadius.lg, backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.cardBorder },
+  shippingTitle: { color: Colors.textPrimary, fontSize: Typography.fontSize.sm, fontWeight: '800' },
+  shippingText: { marginTop: 2, color: Colors.textSecondary, fontSize: Typography.fontSize.xs },
+  browseLink: { marginTop: Spacing.sm, alignSelf: 'center', minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md },
+  browseLinkText: { color: Colors.primaryDark, fontSize: Typography.fontSize.sm, fontWeight: '800' },
+  outfitBadge: { alignSelf: 'flex-start', marginBottom: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: BorderRadius.pill, backgroundColor: Colors.black },
+  outfitBadgeText: { color: Colors.white, fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
   quickActions: { marginTop: Spacing.md, flexDirection: 'row', gap: Spacing.sm },
   marketButton: { flex: 1, minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: Spacing.sm, borderRadius: BorderRadius.pill, borderWidth: 1, borderColor: Colors.cardBorder, backgroundColor: Colors.white },
   marketButtonText: { color: Colors.textPrimary, fontSize: Typography.fontSize.xs, fontWeight: '800' },
