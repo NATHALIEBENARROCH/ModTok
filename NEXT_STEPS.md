@@ -20,8 +20,14 @@ yet. The app version in `app.json` is **1.1.0**.
 - **Clear server error messages** instead of "Unexpected error".
 - **Bigger app icon and tagline**.
 
-**Important:** if Apple rejects 1.0 and asks for a fix, do NOT build from `main` (it would send 1.1).
-Build from the tag `before-1.1` instead (`git checkout before-1.1`), or ask Claude to help.
+## Branches on GitHub (what each one is)
+- **main**: the one that matters. Has everything, including all the 1.1 changes. Version 1.1 will
+  be built and submitted from here. Being on main does NOT send anything to Apple.
+- **feature/shipping-labels-outfit-bundles**: where the 1.1 work was first written (Oct 16). Now an
+  exact copy of main, so it's no longer needed and can be deleted.
+- **app-store-fixes**: the old 1.0 code, the same as what Apple is reviewing (on this Mac it is also
+  saved as `before-1.1`). Keep it until Apple approves 1.0. If Apple asks for a fix, the fix is made
+  here, NOT on main (main would send the unfinished 1.1). Can be deleted after approval.
 
 ## Planned next: virtual try-on
 "Try on you" / try on a model, like Google's try-on: the buyer sees a listed item on their own
