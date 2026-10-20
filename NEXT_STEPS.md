@@ -3,6 +3,31 @@
 ## Status: SUBMITTED TO APPLE on Oct 5, 2026 (version 1.0, build 7)
 Apple reviews within about 48 hours and emails nb26@me.com. Release is set to **manual**.
 
+## What's on `main` (updated Oct 20, 2026)
+`main` now holds everything below, on GitHub and on this computer. None of it is submitted to Apple
+yet. The app version in `app.json` is **1.1.0**.
+
+- **Prepaid shipping labels (Vinted-style)**: sellers pick Small / Medium / Large instead of typing a
+  shipping price; the buyer pays shipping; ModTok buys a USPS label through Shippo; the seller opens
+  the label in My Sales, drops off, and the order updates to Shipped / Delivered from tracking.
+- **Sell an Outfit**: list a saved outfit at one price, with the option to also sell the pieces
+  separately (when one sells, the other comes off the marketplace).
+- **Buyer bundles**: buy several items from one seller in one checkout, one package, with the
+  seller's bundle discount (default 10% / 15% / 20%).
+- **Sell → Shipping & bundles**: ship-from address (required before listing) and bundle discounts.
+- **Edit Outfit redesign** (Oct 5): one swipeable row per piece.
+- **Sold item no longer shows as for sale** after a purchase (Oct 12).
+- **Clear server error messages** instead of "Unexpected error".
+- **Bigger app icon and tagline**.
+
+**Important:** if Apple rejects 1.0 and asks for a fix, do NOT build from `main` (it would send 1.1).
+Build from the tag `before-1.1` instead (`git checkout before-1.1`), or ask Claude to help.
+
+## Planned next: virtual try-on
+"Try on you" / try on a model, like Google's try-on: the buyer sees a listed item on their own
+photo or on a model. Needs an AI image service, private photo handling, and a consent note
+("only upload a photo of yourself"). Not started; build on its own branch.
+
 ## While Apple reviews
 - **Open ModTok every day** so the free Supabase project stays awake. If it pauses, the reviewer
   gets "Network request failed" and rejects the app.
@@ -15,8 +40,8 @@ Apple reviews within about 48 hours and emails nb26@me.com. Release is set to **
 - Open the app every few days until then, to keep the free Supabase project awake
 
 ## After approval (version 1.1)
-- **Prepaid shipping labels, Sell an Outfit, and buyer bundles**: WRITTEN (Oct 16) on the branch
-  `feature/shipping-labels-outfit-bundles`, not yet tested on a phone. Setup steps, in order, are in
+- **Prepaid shipping labels, Sell an Outfit, and buyer bundles**: WRITTEN (Oct 16), merged into
+  `main` on Oct 20, not yet tested on a phone. Setup steps, in order, are in
   `SHIPPING_AND_BUNDLES.md` (Shippo account, one SQL script, two secrets, deploy, test).
 - Add **Canada** (sellers and buyers)
 - **Edit Outfit redesign**: WRITTEN (Oct 5), not yet tested on a phone. Goes out with the next build.
