@@ -15,6 +15,7 @@ import { supabase } from '../lib/supabase';
 import { useCloset } from '../context/ClosetContext';
 import { ShareStory, useOutfit } from '../context/OutfitContext';
 import { useMarketplace } from '../context/MarketplaceContext';
+import { useAccount } from '../context/AccountContext';
 
 // Turn on only once Premium is sold through Apple In-App Purchase.
 const SHOW_PREMIUM_BANNER = false;
@@ -23,6 +24,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
   const { items, totalItems } = useCloset();
   const { outfits, shareStories } = useOutfit();
   const { purchases, sales } = useMarketplace();
+  const { isGuest } = useAccount();
   const [userEmail, setUserEmail] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
   const [viewerStory, setViewerStory] = useState<ShareStory | null>(null);
@@ -34,10 +36,10 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
         setUserId(data.user.id);
       }
     });
-  }, []);
+  }, [isGuest]);
 
-  const username = userEmail ? '@' + userEmail.split('@')[0] : '@user';
-  const displayName = userEmail ? userEmail.split('@')[0] : 'ModTok User';
+  const username = userEmail ? '@' + userEmail.split('@')[0] : isGuest ? 'Guest' : '@user';
+  const displayName = userEmail ? userEmail.split('@')[0] : isGuest ? 'Guest' : 'ModTok User';
   const ownStory = useMemo(
     () => shareStories.find((story) => story.user_id === userId) ?? null,
     [shareStories, userId],
@@ -65,6 +67,17 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
             <Ionicons name="settings-outline" size={22} color={Colors.black} />
           </TouchableOpacity>
         </View>
+
+        {isGuest && (
+          <TouchableOpacity style={styles.guestBanner} onPress={() => navigation.navigate('CreateAccount')} activeOpacity={0.85}>
+            <Ionicons name="sparkles-outline" size={20} color={Colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.guestBannerTitle}>You're using ModTok as a guest</Text>
+              <Text style={styles.guestBannerText}>Create a free account to keep your wardrobe safe and to buy, sell and share.</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={Colors.mediumGray} />
+          </TouchableOpacity>
+        )}
 
         <View style={styles.profileSection}>
           <View style={styles.avatarContainer}>
@@ -242,6 +255,20 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
 }
 
 const styles = StyleSheet.create({
+  guestBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    padding: Spacing.base,
+    marginHorizontal: Spacing.base,
+    marginBottom: Spacing.base,
+  },
+  guestBannerTitle: { fontSize: Typography.fontSize.base, fontWeight: '700', color: Colors.textPrimary },
+  guestBannerText: { fontSize: Typography.fontSize.sm, color: Colors.textSecondary, marginTop: 2, lineHeight: 18 },
   safeArea: { flex: 1, backgroundColor: Colors.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.base, paddingTop: Spacing.md, paddingBottom: Spacing.sm },
   username: { fontSize: Typography.fontSize.md, fontWeight: '700', color: Colors.textPrimary },
