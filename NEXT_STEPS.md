@@ -29,6 +29,17 @@ yet. The app version in `app.json` is **1.1.0**.
   saved as `before-1.1`). Keep it until Apple approves 1.0. If Apple asks for a fix, the fix is made
   here, NOT on main (main would send the unfinished 1.1). Can be deleted after approval.
 
+## Planned for 1.1: better color picking (Add Item → Pick a color)
+For fashionistas, keep the quick preset dots and add two ways to get the exact shade:
+- **Eyedropper on the item's photo**: tap the garment in the picture and ModTok picks up its
+  exact color. Works with the photo already taken in Add Item.
+- **Adjust it on a full color wheel**: Photoshop-style picker (hue wheel + brightness/saturation,
+  plus a hex code field), so the eyedropper color can be fine-tuned or a new color made.
+- Then name it as today (e.g. "Camel", "Dusty sage"); suggest a name from the nearest common color.
+- **Pantone**: Pantone color names and numbers are licensed. Showing "nearest Pantone" needs a
+  license from Pantone (they have a developer/licensing program). Start with our own names;
+  check Pantone licensing cost before adding it.
+
 ## Planned next: virtual try-on
 "Try on you" / try on a model, like Google's try-on: the buyer sees a listed item on their own
 photo or on a model. Needs an AI image service, private photo handling, and a consent note
