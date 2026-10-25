@@ -102,6 +102,7 @@ export default function CheckoutScreen() {
 
       await initStripe({
         publishableKey: data.publishable_key,
+        merchantIdentifier: 'merchant.com.modtok.app', // Apple Pay
         urlScheme: 'modtok',
       });
 
@@ -110,6 +111,8 @@ export default function CheckoutScreen() {
         paymentIntentClientSecret: data.payment_intent_client_secret,
         returnURL: 'modtok://stripe-redirect',
         allowsDelayedPaymentMethods: false,
+        // Apple Pay shows at the top of the payment sheet on iPhones that have it set up.
+        applePay: { merchantCountryCode: 'US' },
         defaultBillingDetails: { name: shippingAddress.name, phone: shippingAddress.phone },
         style: 'automatic',
       });
@@ -186,8 +189,8 @@ export default function CheckoutScreen() {
           <View style={styles.paymentCard}>
             <Ionicons name="card-outline" size={24} color={Colors.primary} />
             <View style={styles.paymentCopy}>
-              <Text style={styles.paymentTitle}>Card details come next</Text>
-              <Text style={styles.paymentText}>Stripe’s secure payment sheet will collect your card. ModTok never stores your card number.</Text>
+              <Text style={styles.paymentTitle}>Apple Pay or card comes next</Text>
+              <Text style={styles.paymentText}>Pay with Apple Pay or a card on Stripe’s secure payment sheet. ModTok never stores your card number.</Text>
             </View>
           </View>
           <View style={{ height: 118 }} />
