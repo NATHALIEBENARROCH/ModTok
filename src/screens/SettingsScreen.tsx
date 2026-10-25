@@ -15,6 +15,7 @@ import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
 import { supabase } from '../lib/supabase';
 import { functionError } from '../context/MarketplaceContext';
+import { useAccount } from '../context/AccountContext';
 
 type SettingsScreenProps = {
   navigation: any;
@@ -48,6 +49,7 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
   const [notifications, setNotifications] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const { isGuest } = useAccount();
 
   const deleteAccount = () => {
     Alert.alert(
@@ -152,10 +154,18 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
     {
       title: 'Account',
       items: [
+        ...(isGuest
+          ? [{
+              icon: 'sparkles-outline',
+              label: 'Create a free account',
+              subtitle: 'Keep your wardrobe and buy, sell and share',
+              onPress: () => navigation.navigate('CreateAccount'),
+            }]
+          : []),
         {
           icon: 'trash-outline',
-          label: deletingAccount ? 'Deleting account...' : 'Delete my account',
-          subtitle: 'Permanently remove your ModTok account',
+          label: deletingAccount ? 'Deleting account...' : isGuest ? 'Delete my guest data' : 'Delete my account',
+          subtitle: isGuest ? 'Permanently remove everything you added as a guest' : 'Permanently remove your ModTok account',
           onPress: deleteAccount,
         },
       ],
@@ -273,7 +283,12 @@ export default function SettingsScreen({ navigation }: SettingsScreenProps) {
           style={styles.logoutBtn}
           activeOpacity={0.7}
           onPress={() =>
-            Alert.alert('Log Out', 'Are you sure you want to log out?', [
+            Alert.alert(
+              'Log Out',
+              isGuest
+                ? 'You are using ModTok as a guest. If you log out, the items and outfits you added will be lost. Create a free account first to keep them.'
+                : 'Are you sure you want to log out?',
+              [
               { text: 'Cancel', style: 'cancel' },
               { text: 'Log Out', style: 'destructive', onPress: () => supabase.auth.signOut() },
             ])

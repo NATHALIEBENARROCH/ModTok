@@ -57,6 +57,21 @@ export default function SignInScreen() {
     }
   }
 
+  // Guest mode: start using the wardrobe right away, no personal information needed.
+  // The guest can create an account later from Sell, Share, checkout or Profile.
+  async function handleGuest() {
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      const { error } = await supabase.auth.signInAnonymously();
+      if (error) setErrorMsg(error.message);
+    } catch (e: any) {
+      setErrorMsg(e?.message || 'Something went wrong.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleAuth() {
     if (!email || !password) {
       setErrorMsg('Please enter your email and password.');
@@ -219,6 +234,18 @@ export default function SignInScreen() {
               )}
             </TouchableOpacity>
 
+            {/* Guest mode (App Review guideline 5.1.1(v)): the wardrobe works without an account */}
+            <TouchableOpacity
+              style={[styles.guestBtn, loading && { opacity: 0.7 }]}
+              onPress={handleGuest}
+              disabled={loading}
+            >
+              <Text style={styles.guestBtnText}>Try it without an account</Text>
+            </TouchableOpacity>
+            <Text style={styles.guestNote}>
+              Start your wardrobe right away. Create an account anytime to buy, sell and share.
+            </Text>
+
             {/* Social sign-in (Apple / Google) removed until it is fully implemented:
                 App Review rejects buttons that do nothing (Guideline 2.1). */}
 
@@ -362,6 +389,28 @@ const styles = StyleSheet.create({
   toggleLink: {
     color: Colors.primary,
     fontWeight: '700',
+  },
+  guestBtn: {
+    borderRadius: BorderRadius.pill,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: Colors.black,
+    backgroundColor: Colors.white,
+    marginBottom: Spacing.sm,
+  },
+  guestBtnText: {
+    color: Colors.black,
+    fontSize: Typography.fontSize.base,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  guestNote: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
   },
   errorText: {
     color: '#D32F2F',

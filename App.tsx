@@ -11,6 +11,7 @@ import ResetPasswordScreen from "./src/screens/ResetPasswordScreen";
 import { ClosetProvider } from "./src/context/ClosetContext";
 import { OutfitProvider } from "./src/context/OutfitContext";
 import { MarketplaceProvider } from "./src/context/MarketplaceContext";
+import { AccountProvider } from "./src/context/AccountContext";
 import { Colors } from "./src/theme";
 import ModTokLogo from "./src/components/ModTokLogo";
 import { supabase } from "./src/lib/supabase";
@@ -87,7 +88,9 @@ function AppContent() {
   const content = isPasswordRecovery ? (
     <ResetPasswordScreen onComplete={() => setIsPasswordRecovery(false)} />
   ) : session ? (
-    <AppNavigator />
+    <AccountProvider value={{ isGuest: Boolean(session.user?.is_anonymous) }}>
+      <AppNavigator />
+    </AccountProvider>
   ) : (
     <SignInScreen />
   );
