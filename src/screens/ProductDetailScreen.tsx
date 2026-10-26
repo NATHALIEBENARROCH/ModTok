@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { LISTING_SELECT, useMarketplace } from '../context/MarketplaceContext';
 import { supabase } from '../lib/supabase';
-import { CONDITION_LABELS, MarketplaceListing, PACKAGE_SIZE_LABELS, formatUsd } from '../types/marketplace';
+import { BUYER_PROTECTION_INFO, CONDITION_LABELS, MarketplaceListing, PACKAGE_SIZE_LABELS, buyerProtectionCents, formatUsd } from '../types/marketplace';
 import { BorderRadius, Colors, Spacing, Typography } from '../theme';
 import TryOnSheet from '../components/TryOnSheet';
 import { tryOnCategory } from '../lib/tryOn';
@@ -70,8 +70,9 @@ export default function ProductDetailScreen() {
       });
   }, [listing, listings]);
 
+  const protection = listing ? buyerProtectionCents(listing.price_cents) : 0;
   const total = useMemo(
-    () => listing ? listing.price_cents + listing.shipping_price_cents : 0,
+    () => listing ? listing.price_cents + listing.shipping_price_cents + buyerProtectionCents(listing.price_cents) : 0,
     [listing],
   );
 
@@ -266,6 +267,13 @@ export default function ProductDetailScreen() {
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Item</Text><Text style={styles.summaryValue}>{formatUsd(listing.price_cents)}</Text></View>
           <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Shipping · {PACKAGE_SIZE_LABELS[listing.package_size ?? 'medium']} package</Text><Text style={styles.summaryValue}>{formatUsd(listing.shipping_price_cents)}</Text></View>
+          <TouchableOpacity style={styles.summaryRow} onPress={() => Alert.alert('Buyer Protection', BUYER_PROTECTION_INFO)} accessibilityRole="button" accessibilityLabel="About Buyer Protection">
+            <View style={styles.protectionLabel}>
+              <Text style={styles.summaryLabel}>Buyer Protection</Text>
+              <Ionicons name="information-circle-outline" size={15} color={Colors.textSecondary} />
+            </View>
+            <Text style={styles.summaryValue}>{formatUsd(protection)}</Text>
+          </TouchableOpacity>
           <View style={styles.divider} />
           <View style={styles.summaryRow}><Text style={styles.totalLabel}>Total before tax</Text><Text style={styles.totalValue}>{formatUsd(total)}</Text></View>
         </View>
@@ -350,6 +358,7 @@ const styles = StyleSheet.create({
   parentOutfit: { marginTop: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, borderRadius: BorderRadius.lg, backgroundColor: '#F9E5E1' },
   summaryCard: { marginTop: Spacing.md, padding: Spacing.base, backgroundColor: Colors.white, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.cardBorder, gap: Spacing.sm },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  protectionLabel: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   summaryLabel: { color: Colors.textSecondary, fontSize: Typography.fontSize.sm },
   summaryValue: { color: Colors.textPrimary, fontSize: Typography.fontSize.sm, fontWeight: '700' },
   divider: { height: 1, backgroundColor: Colors.cardBorder },

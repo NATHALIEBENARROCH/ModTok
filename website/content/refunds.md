@@ -29,7 +29,7 @@ Changing your mind, or an item not fitting when the listing showed the correct s
 
 ## 3. How refunds are paid
 
-Refunds go back to the original payment method through Stripe. They usually appear within 5–10 business days, depending on your bank. When a refund is approved, the seller's payout for that order is reversed.
+A full refund includes the item price, shipping and the Buyer Protection fee. Refunds go back to the original payment method through Stripe. They usually appear within 5–10 business days, depending on your bank. When a refund is approved, the seller's payout for that order is reversed.
 
 ## 4. Payment disputes
 

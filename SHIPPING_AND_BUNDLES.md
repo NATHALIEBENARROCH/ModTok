@@ -37,9 +37,9 @@ Built Oct 16, 2026 on the branch `feature/shipping-labels-outfit-bundles`.
 ## Money per order (example: $50 outfit, Large box)
 | | |
 |---|---|
-| Buyer pays | $50.00 + $14.99 shipping = **$64.99** |
-| ModTok keeps | $5.00 fee (10%) + $14.99 shipping (pays the label) |
-| Seller receives | **$45.00** |
+| Buyer pays | $50.00 + $14.99 shipping + $3.20 Buyer Protection ($0.70 + 5%) = **$68.19** |
+| ModTok keeps | $3.20 Buyer Protection + $14.99 shipping (pays the label) |
+| Seller receives | **$50.00** (no seller fees) |
 
 ModTok's profit or loss on shipping = shipping charged − actual label cost (saved on each order
 as `label_cost_cents`). Check these after the first sales and adjust `shipping_rates` if needed.

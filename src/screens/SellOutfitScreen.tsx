@@ -343,7 +343,7 @@ export default function SellOutfitScreen() {
             {allowSeparate && (
               <Text style={styles.hint}>Single pieces get a size from their category. You can change those later from each listing.</Text>
             )}
-            <Text style={styles.hint}>The buyer pays shipping and you get a prepaid label when it sells. ModTok keeps a 10% fee on the sale price.</Text>
+            <Text style={styles.hint}>The buyer pays shipping and you get a prepaid label when it sells. No seller fees: you keep 100% of your price.</Text>
             <View style={{ height: 24 }} />
           </ScrollView>
 

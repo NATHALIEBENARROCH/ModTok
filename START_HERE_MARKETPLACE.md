@@ -64,7 +64,7 @@ The script guides you through four actions. It opens Supabase sign-in if needed,
 
 When prompted for Stripe keys, open the Stripe Dashboard in **Sandbox**, then go to **Developers → API keys**. Paste the `sk_test_...` secret key and the `pk_test_...` publishable key into the Terminal prompts. The values are hidden while pasted and are not written into the ModTok folder.
 
-The setup stores a platform fee of `1000` basis points, which equals **10% of the item price**. Confirm this commercial policy with legal/accounting advisers and disclose it to sellers before Live launch.
+Sellers pay no fee. The setup stores a Buyer Protection fee paid by the buyer of **$0.70 + 5% of the item price** (`BUYER_PROTECTION_FIXED_CENTS=70`, `BUYER_PROTECTION_BPS=500`). See `BUYER_PROTECTION.md`.
 
 ## Step 4 — Add the Stripe Sandbox Webhook
 

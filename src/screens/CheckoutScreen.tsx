@@ -22,8 +22,10 @@ import {
   BundleDiscount,
   PACKAGE_SIZE_LABELS,
   ShippingAddress,
+  BUYER_PROTECTION_INFO,
   bundleDiscountBps,
   bundlePackageSize,
+  buyerProtectionCents,
   formatUsd,
 } from '../types/marketplace';
 import { BorderRadius, Colors, Spacing, Typography } from '../theme';
@@ -108,7 +110,8 @@ export default function CheckoutScreen() {
     const discountCents = Math.round((subtotal * discountBps) / 10000);
     const size = items.length > 1 ? bundlePackageSize(items) : listing?.package_size ?? 'medium';
     const shipping = items.length > 1 ? shippingRate(size).price_cents : listing?.shipping_price_cents ?? 0;
-    return { subtotal, discountBps, discountCents, size, shipping, total: subtotal - discountCents + shipping };
+    const protection = buyerProtectionCents(subtotal - discountCents);
+    return { subtotal, discountBps, discountCents, size, shipping, protection, total: subtotal - discountCents + shipping + protection };
   }, [discount, items, listing, shippingRate]);
   const total = quote.total;
   const sellerName = listing?.seller?.display_name || listing?.seller?.username || 'this seller';
@@ -252,6 +255,14 @@ export default function CheckoutScreen() {
               <View style={styles.summaryRow}><Text style={styles.discountLabel}>Bundle discount ({Math.round(quote.discountBps / 100)}%)</Text><Text style={styles.discountLabel}>−{formatUsd(quote.discountCents)}</Text></View>
             )}
             <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Shipping · {PACKAGE_SIZE_LABELS[quote.size]} package, tracked</Text><Text style={styles.summaryValue}>{formatUsd(quote.shipping)}</Text></View>
+            <TouchableOpacity style={styles.summaryRow} onPress={() => Alert.alert('Buyer Protection', BUYER_PROTECTION_INFO)} accessibilityRole="button" accessibilityLabel="About Buyer Protection">
+              <View style={styles.protectionLabel}>
+                <Ionicons name="shield-checkmark-outline" size={15} color={Colors.green} />
+                <Text style={styles.summaryLabel}>Buyer Protection</Text>
+                <Ionicons name="information-circle-outline" size={15} color={Colors.textSecondary} />
+              </View>
+              <Text style={styles.summaryValue}>{formatUsd(quote.protection)}</Text>
+            </TouchableOpacity>
           </View>
 
           {isBundleCheckout && (
@@ -322,6 +333,7 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: Colors.cardBorder },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.sm },
   summaryLabel: { flexShrink: 1, color: Colors.textSecondary, fontSize: Typography.fontSize.sm },
+  protectionLabel: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 5 },
   summaryValue: { color: Colors.textPrimary, fontSize: Typography.fontSize.sm, fontWeight: '700' },
   discountLabel: { color: Colors.green, fontSize: Typography.fontSize.sm, fontWeight: '800' },
   addMore: { marginTop: Spacing.sm, alignSelf: 'center', minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: Spacing.md },
