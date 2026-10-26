@@ -39,6 +39,10 @@ We collect information when you report a listing or story, block another user, r
 
 We may collect technical information such as device type, operating system, app version, language, approximate location derived from an IP address, crash records, diagnostic data, access times, and interactions with Service features. We do not collect precise device location unless a future feature clearly requests permission and this Privacy Policy is updated.
 
+### 1.8 AI virtual try-on photos
+
+If you use “Try it on” with your own photo, the photo is sent to our try-on provider, FASHN, only to create that one try-on image. ModTok does not save your photo or the result on its servers. FASHN deletes the uploaded photo when the try-on finishes and the result within about one hour, and does not use it to train AI models. ModTok keeps only a record that a try-on happened (your account, the time, and whether it used your photo or a ModTok model) to apply daily limits. Only upload a photo of yourself.
+
 ## 2. How We Use Information
 
 We use personal information to provide and secure accounts; store wardrobes and outfits; publish stories and marketplace listings at your direction; process purchases, seller onboarding, payments, payouts, shipping, refunds, disputes, and customer support; prevent duplicate sales of one-of-a-kind items; detect fraud and misuse; enforce our Terms of Use and marketplace rules; moderate reported content; honor blocks; communicate service and transaction updates; improve reliability and usability; comply with legal, tax, accounting, and regulatory obligations; and establish, exercise, or defend legal claims.
@@ -52,6 +56,7 @@ We disclose information only as reasonably necessary for the purposes described 
 | Recipient | Information and purpose |
 |---|---|
 | Other ModTok users | Public profile elements, published stories, and marketplace listing information. A seller receives the buyer’s recipient name and shipping address after payment so the order can be shipped. |
+| FASHN | Your try-on photo and the clothing photo, only to create an AI try-on image you asked for. Not kept or used for AI training. |
 | Stripe | Seller onboarding, identity verification, payment processing, connected-account payouts, refunds, fraud prevention, and disputes. Stripe processes information under its own privacy policy. |
 | Supabase and hosting providers | Authentication, database hosting, file storage, server functions, logs, and security. |
 | Apple, Google, and app-platform providers | App distribution, authentication where selected, device services, crash diagnostics, and platform compliance. |

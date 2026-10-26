@@ -20,3 +20,6 @@ verify_jwt = true
 
 [functions.shipping-webhook]
 verify_jwt = false
+
+[functions.virtual-try-on]
+verify_jwt = true

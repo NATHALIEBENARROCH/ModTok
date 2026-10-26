@@ -16,6 +16,8 @@ import { LISTING_SELECT, useMarketplace } from '../context/MarketplaceContext';
 import { supabase } from '../lib/supabase';
 import { CONDITION_LABELS, MarketplaceListing, PACKAGE_SIZE_LABELS, formatUsd } from '../types/marketplace';
 import { BorderRadius, Colors, Spacing, Typography } from '../theme';
+import TryOnSheet from '../components/TryOnSheet';
+import { tryOnCategory } from '../lib/tryOn';
 
 export default function ProductDetailScreen() {
   const navigation = useNavigation<any>();
@@ -36,6 +38,7 @@ export default function ProductDetailScreen() {
   const [loading, setLoading] = useState(!listing);
   const [viewerId, setViewerId] = useState<string | null>(null);
   const [parentOutfit, setParentOutfit] = useState<MarketplaceListing | null>(null);
+  const [showTryOn, setShowTryOn] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setViewerId(data.user?.id ?? null));
@@ -152,6 +155,8 @@ export default function ProductDetailScreen() {
   };
   const sellerName = listing.seller?.display_name || listing.seller?.username || 'ModTok seller';
   const available = listing.status === 'active';
+  // AI try-on works on single pieces (tops, bottoms, dresses), not whole outfits or accessories.
+  const tryOnKind = !isOutfit && listing.image_urls?.[0] ? tryOnCategory(listing.category) : null;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -192,6 +197,13 @@ export default function ProductDetailScreen() {
           <View style={styles.pill}><Text style={styles.pillText}>{CONDITION_LABELS[listing.condition]}</Text></View>
           <View style={styles.pill}><Text style={styles.pillText}>{listing.category}</Text></View>
         </View>
+
+        {tryOnKind && (
+          <TouchableOpacity style={styles.tryOnButton} onPress={() => setShowTryOn(true)}>
+            <Ionicons name="sparkles-outline" size={19} color={Colors.white} />
+            <Text style={styles.tryOnButtonText}>Try it on</Text>
+          </TouchableOpacity>
+        )}
 
         {!!listing.description && <Text style={styles.description}>{listing.description}</Text>}
 
@@ -286,6 +298,16 @@ export default function ProductDetailScreen() {
           <Text style={styles.buyButtonText}>{isOwner ? 'Your listing' : available ? `Buy · ${formatUsd(total)}` : 'Unavailable'}</Text>
         </TouchableOpacity>
       </View>
+
+      {tryOnKind && (
+        <TryOnSheet
+          visible={showTryOn}
+          onClose={() => setShowTryOn(false)}
+          garmentImage={listing.image_urls[0]}
+          category={tryOnKind}
+          title={listing.title}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -307,6 +329,8 @@ const styles = StyleSheet.create({
   pillRow: { marginTop: Spacing.md, flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   pill: { paddingHorizontal: Spacing.md, paddingVertical: 7, borderRadius: BorderRadius.pill, backgroundColor: Colors.black },
   pillText: { color: Colors.white, fontSize: Typography.fontSize.xs, fontWeight: '700' },
+  tryOnButton: { marginTop: Spacing.lg, minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, borderRadius: BorderRadius.pill, backgroundColor: Colors.black },
+  tryOnButtonText: { color: Colors.white, fontSize: Typography.fontSize.base, fontWeight: '800' },
   description: { marginTop: Spacing.lg, color: Colors.textPrimary, fontSize: Typography.fontSize.base, lineHeight: 23 },
   sellerCard: { marginTop: Spacing.lg, flexDirection: 'row', alignItems: 'center', padding: Spacing.md, backgroundColor: Colors.white, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.cardBorder },
   avatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.black, overflow: 'hidden' },
