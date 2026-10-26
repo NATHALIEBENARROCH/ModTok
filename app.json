@@ -17,8 +17,8 @@
       "bundleIdentifier": "com.modtok.app",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "ModTok uses your camera to photograph clothing items for your closet.",
-        "NSPhotoLibraryUsageDescription": "ModTok accesses your photo library to import clothing images.",
+        "NSCameraUsageDescription": "ModTok uses your camera to photograph clothing items for your closet and to take a photo of you for AI try-on.",
+        "NSPhotoLibraryUsageDescription": "ModTok accesses your photo library to import clothing images and a photo of you for AI try-on.",
         "NSPhotoLibraryAddUsageDescription": "ModTok saves outfit images to your photo library.",
         "ITSAppUsesNonExemptEncryption": false
       }

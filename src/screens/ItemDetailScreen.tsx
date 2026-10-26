@@ -22,6 +22,8 @@ import { Colors, Spacing, BorderRadius, Typography } from '../theme';
 import { ClothingItem } from '../context/ClosetContext';
 import { supabase } from '../lib/supabase';
 import { Occasion, useOutfit } from '../context/OutfitContext';
+import TryOnSheet from '../components/TryOnSheet';
+import { tryOnCategory } from '../lib/tryOn';
 
 const CLOTHING_CATEGORIES = [
   'Coats', 'Jackets', 'Cardigans', 'Sweaters', 'Tops', 'Blouses',
@@ -79,6 +81,7 @@ export default function ItemDetailScreen() {
   const [saved, setSaved] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showCategoryAlert, setShowCategoryAlert] = useState(false);
+  const [showTryOn, setShowTryOn] = useState(false);
 
   // Editable fields
   const [name, setName] = useState(item?.name || '');
@@ -356,6 +359,13 @@ export default function ItemDetailScreen() {
             <Text style={styles.changePhotoText}>Change Photo</Text>
           </TouchableOpacity>
         </View>
+
+        {!!item.image && !!tryOnCategory(item.category) && (
+          <TouchableOpacity style={styles.tryOnButton} onPress={() => setShowTryOn(true)}>
+            <Ionicons name="sparkles-outline" size={19} color={Colors.white} />
+            <Text style={styles.tryOnButtonText}>Try it on</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Name, Brand, Price, Caption */}
         <View style={styles.card}>
@@ -789,6 +799,16 @@ export default function ItemDetailScreen() {
       </Modal>
 
       {/* Delete Confirmation Modal */}
+      {!!item.image && tryOnCategory(item.category) && (
+        <TryOnSheet
+          visible={showTryOn}
+          onClose={() => setShowTryOn(false)}
+          garmentImage={item.image_url ?? item.image}
+          category={tryOnCategory(item.category)!}
+          title={item.name}
+        />
+      )}
+
       <Modal visible={showDeleteModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
@@ -880,6 +900,17 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   changePhotoText: { color: Colors.white, fontWeight: '600', fontSize: Typography.fontSize.sm },
+  tryOnButton: {
+    minHeight: 50,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.base,
+    borderRadius: BorderRadius.pill,
+    backgroundColor: Colors.primary,
+  },
+  tryOnButtonText: { color: Colors.white, fontWeight: '800', fontSize: Typography.fontSize.base },
   card: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
