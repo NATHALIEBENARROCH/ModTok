@@ -11,7 +11,7 @@ hidden for shoes, bags, jewelry, accessories and whole-outfit listings, which th
 
 About **$0.075 per try-on**, paid to FASHN from prepaid credits. Two caps keep the bill safe:
 
-- Each shopper gets **10 try-ons per day** (`TRYON_DAILY_LIMIT`).
+- Each shopper gets **3 free try-ons per day** (`TRYON_DAILY_LIMIT`).
 - All of ModTok together gets **500 per day** (`TRYON_GLOBAL_DAILY_LIMIT`), so at most about $37.50 a day.
 - Guests need a free account first. A try-on that fails doesn't count.
 

@@ -15,12 +15,12 @@ a key swap.
 
 ## A. Activate your Stripe account for Live payments
 Stripe Dashboard → turn **off** Sandbox/Test mode → follow **Activate payments**. Stripe asks
-for your business details, a Canadian bank account for your 10% platform fee, and your ID.
+for your business details, a Canadian bank account for ModTok's Buyer Protection fees, and your ID.
 
 ## B. Turn on Stripe Connect in Live mode
 Stripe Dashboard (Live) → **Connect** → complete the platform profile. Describe ModTok as:
 *"Marketplace where individuals sell used clothing to other individuals in the U.S.;
-the platform takes a 10% fee."* Choose **Express** accounts and **destination charges**.
+sellers pay no fee, and buyers pay the platform a Buyer Protection fee of $0.70 + 5% per order."* Choose **Express** accounts and **destination charges**.
 Stripe must approve a Canadian platform paying U.S. sellers; if Stripe asks questions, answer
 them here.
 
@@ -72,7 +72,7 @@ refund it from **My Sales**.
 - **U.S. sales tax:** many U.S. states make marketplaces collect sales tax for their sellers.
   ModTok currently charges **$0 tax**. Ask your accountant whether you must collect it.
   Stripe Tax can add it later.
-- **Seller fee disclosure:** sellers must be told about the 10% fee before they list.
-  Put it in the Terms and on the Sell screen.
+- **Buyer Protection fee:** the fee is shown to buyers at checkout and in the Terms. Ask your
+  accountant whether U.S. sales tax applies to it, as it does to the item in some states.
 - **Terms and Privacy Policy:** the drafts in `legal/` must be finalised and put online.
   Apple also requires this.

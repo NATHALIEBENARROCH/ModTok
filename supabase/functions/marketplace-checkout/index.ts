@@ -1,4 +1,4 @@
-import { platformFeeBps, requireUser, stripe, supabaseAdmin } from '../_shared/clients.ts';
+import { buyerProtectionFee, requireUser, stripe, supabaseAdmin } from '../_shared/clients.ts';
 import { errorResponse, handleCors, jsonResponse } from '../_shared/http.ts';
 
 type ShippingAddress = {
@@ -73,11 +73,13 @@ Deno.serve(async (request) => {
     const ids = listingIds(body);
     const shipping = validateAddress(body.shipping_address);
 
-    const { data: order, error: reserveError } = await supabaseAdmin.rpc('reserve_marketplace_cart', {
+    const fee = buyerProtectionFee();
+    const { data: order, error: reserveError } = await supabaseAdmin.rpc('reserve_marketplace_cart_with_buyer_fee', {
       p_listing_ids: ids,
       p_buyer_id: user.id,
       p_shipping_address: shipping,
-      p_platform_fee_bps: platformFeeBps(),
+      p_buyer_fee_fixed_cents: fee.fixedCents,
+      p_buyer_fee_bps: fee.bps,
     });
     if (reserveError) throw reserveError;
     reservedOrder = order;
@@ -101,7 +103,8 @@ Deno.serve(async (request) => {
           amount: order.total_amount_cents,
           currency: 'usd',
           automatic_payment_methods: { enabled: true },
-          // ModTok keeps its fee plus the shipping money, which pays for the prepaid label.
+          // ModTok keeps the buyer's Buyer Protection fee plus the shipping money, which pays
+          // for the prepaid label. The seller receives the full item price.
           application_fee_amount: order.platform_fee_cents + (order.platform_shipping_cents ?? 0),
           transfer_data: { destination: sellerAccount.stripe_account_id },
           on_behalf_of: sellerAccount.stripe_account_id,
@@ -146,6 +149,7 @@ Deno.serve(async (request) => {
       item_amount_cents: order.item_amount_cents,
       discount_amount_cents: order.discount_amount_cents ?? 0,
       shipping_amount_cents: order.shipping_amount_cents,
+      buyer_protection_cents: order.buyer_protection_cents ?? 0,
       package_size: order.package_size,
       currency: 'usd',
     });

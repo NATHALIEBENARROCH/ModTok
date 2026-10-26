@@ -144,6 +144,7 @@ export type MarketplaceOrder = {
   shipping_amount_cents: number;
   tax_amount_cents: number;
   platform_fee_cents: number;
+  buyer_protection_cents?: number;
   seller_net_cents: number;
   total_amount_cents: number;
   shipping_address: ShippingAddress;
@@ -184,6 +185,20 @@ export function defaultPackageSize(category?: string | null): PackageSize {
 
 export function formatUsd(cents: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
+}
+
+/** Sellers pay no fee. Buyers pay Buyer Protection: $0.70 + 5% of the items (not shipping). */
+export const BUYER_PROTECTION_FIXED_CENTS = 70;
+export const BUYER_PROTECTION_BPS = 500;
+
+export const BUYER_PROTECTION_INFO =
+  'If your item never arrives, or arrives significantly not as described, damaged or counterfeit, you can get a full refund, '
+  + 'including shipping and this fee (see our Refund Policy). Sellers pay no fees on ModTok: this fee is how ModTok runs.';
+
+/** Same rule as the server. The server's amount is what Stripe charges. */
+export function buyerProtectionCents(itemsCents: number): number {
+  if (itemsCents <= 0) return 0;
+  return BUYER_PROTECTION_FIXED_CENTS + Math.round((itemsCents * BUYER_PROTECTION_BPS) / 10000);
 }
 
 /** Same rule as the server: picking 2+ listings from one seller earns their bundle discount. */

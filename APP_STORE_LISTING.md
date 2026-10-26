@@ -32,7 +32,7 @@ SHARE YOUR STYLE
 
 SELL WHAT YOU DON'T WEAR
 • List an item from your closet in a few taps
-• Get paid securely through Stripe; ModTok keeps a 10% fee on the sale price
+• No seller fees: keep 100% of your price, paid securely through Stripe
 • Track every order from payment to shipping to delivery
 
 BUY PRE-LOVED FASHION

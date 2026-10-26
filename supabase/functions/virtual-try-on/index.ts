@@ -11,7 +11,7 @@ import { errorResponse, handleCors, jsonResponse } from '../_shared/http.ts';
 //   FASHN_API_KEY             required
 //   TRYON_FEMALE_MODEL_URL    public https photo used by "Try on a female model"
 //   TRYON_MALE_MODEL_URL      public https photo used by "Try on a male model"
-//   TRYON_DAILY_LIMIT         try-ons per shopper per 24 hours (default 10)
+//   TRYON_DAILY_LIMIT         try-ons per shopper per 24 hours (default 3)
 //   TRYON_GLOBAL_DAILY_LIMIT  try-ons across all of ModTok per 24 hours (default 500), a spending cap
 
 const FASHN_BASE = 'https://api.fashn.ai/v1';
@@ -123,7 +123,7 @@ Deno.serve(async (request) => {
     ]);
     if (mineError) throw mineError;
     if (everyoneError) throw everyoneError;
-    const dailyLimit = intEnv('TRYON_DAILY_LIMIT', 10);
+    const dailyLimit = intEnv('TRYON_DAILY_LIMIT', 3);
     if ((mine ?? 0) >= dailyLimit) {
       return errorResponse(`You've used your ${dailyLimit} try-ons for today. Come back tomorrow for more.`, 429);
     }

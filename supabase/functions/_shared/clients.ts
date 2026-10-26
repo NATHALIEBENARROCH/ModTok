@@ -34,10 +34,19 @@ export function appUrl(path = ''): string {
   return `${base}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
-export function platformFeeBps(): number {
-  const raw = Number(Deno.env.get('PLATFORM_FEE_BPS') ?? '1000');
-  if (!Number.isInteger(raw) || raw < 0 || raw > 5000) {
-    throw new Error('PLATFORM_FEE_BPS must be an integer from 0 to 5000.');
+function intSetting(name: string, fallback: number, max: number): number {
+  const raw = Number(Deno.env.get(name) ?? String(fallback));
+  if (!Number.isInteger(raw) || raw < 0 || raw > max) {
+    throw new Error(`${name} must be an integer from 0 to ${max}.`);
   }
   return raw;
+}
+
+// Buyer Protection, paid by the buyer on top of the price (sellers pay no fee):
+// a fixed amount plus a percentage of the items. Default $0.70 + 5%, like Vinted.
+export function buyerProtectionFee(): { fixedCents: number; bps: number } {
+  return {
+    fixedCents: intSetting('BUYER_PROTECTION_FIXED_CENTS', 70, 1000),
+    bps: intSetting('BUYER_PROTECTION_BPS', 500, 2000),
+  };
 }

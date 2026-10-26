@@ -43,9 +43,11 @@ Buyer payment is processed by Stripe. By submitting payment, the buyer authorize
 
 ## 6. Platform Fees
 
-ModTok may charge the seller a platform fee calculated as a percentage of the item price. The current fee and any material change will be disclosed to the seller before or when a listing is created or a sale is completed. Unless otherwise stated, shipping charges are passed to the seller to help cover fulfillment and are not included in the platform-fee calculation. Payment-processing fees, taxes, chargebacks, currency conversion, or other provider charges may apply under Stripe’s terms.
+Sellers pay no fee to list or sell on ModTok and receive the full item price (after any bundle discount they offer).
 
-The initial technical configuration uses a **10% platform fee on the item price**. This amount must be confirmed as the commercial policy and clearly disclosed in the published seller experience before launch.
+Buyers pay a **Buyer Protection fee** on each order, shown at checkout before payment. The current fee is **$0.70 plus 5% of the item price** (after any bundle discount; shipping is not included in the calculation). The fee is refunded whenever an order is fully refunded under the Refund Policy. Any change to the fee is shown before payment and does not affect orders already paid.
+
+The shipping charge paid by the buyer is kept by ModTok to pay for the prepaid shipping label. Payment-processing fees, taxes, chargebacks, currency conversion, or other provider charges may apply under Stripe’s terms.
 
 ## 7. Shipping and Delivery
 
