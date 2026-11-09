@@ -16,6 +16,7 @@ import {
   Modal,
   FlatList,
   KeyboardAvoidingView,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -23,6 +24,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
 import { supabase } from '../lib/supabase';
 import { useCloset } from '../context/ClosetContext';
+import KeyboardDoneBar, { KEYBOARD_DONE_ID } from '../components/KeyboardDoneBar';
 import { useOutfit } from '../context/OutfitContext';
 
 // Upload a local image URI to Supabase Storage and return the public URL
@@ -371,7 +373,7 @@ function StepDetails({
           <Text style={styles.cancelText}>Cancel</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>New Item</Text>
-        <TouchableOpacity onPress={handleSave}>
+        <TouchableOpacity onPress={() => { Keyboard.dismiss(); handleSave(); }}>
           <Text style={styles.saveText}>Save</Text>
         </TouchableOpacity>
       </View>
@@ -381,6 +383,7 @@ function StepDetails({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
       >
         {/* Thumbnail + Caption */}
         <View style={styles.thumbCaptionRow}>
@@ -417,6 +420,7 @@ function StepDetails({
               value={price}
               onChangeText={setPrice}
               keyboardType="decimal-pad"
+              inputAccessoryViewID={KEYBOARD_DONE_ID}
             />
           </View>
         </View>
@@ -666,6 +670,7 @@ function StepDetails({
 
         <View style={{ height: 100 }} />
       </ScrollView>
+      <KeyboardDoneBar />
     </SafeAreaView>
   );
 }

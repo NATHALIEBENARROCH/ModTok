@@ -1,5 +1,5 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -73,6 +73,22 @@ export default function StyleScreen() {
   const [slots, setSlots] = useState<OutfitSlot[]>(
     initialCategories.map((cat) => buildSlot(cat, closetItems)),
   );
+
+  // Keep every slot in step with the closet. Without this, an item added, edited or deleted
+  // elsewhere (for example a new pair of shoes) did not appear here until the screen reloaded.
+  // The piece currently shown in each slot stays selected when it still exists.
+  useEffect(() => {
+    setSlots((prev) =>
+      prev.map((slot) => {
+        const nextItems = closetItems.filter((i) => i.category === slot.category);
+        const currentId = slot.items[slot.currentIndex]?.id;
+        const keptIndex = currentId ? nextItems.findIndex((i) => i.id === currentId) : -1;
+        const currentIndex =
+          keptIndex >= 0 ? keptIndex : Math.min(slot.currentIndex, Math.max(nextItems.length - 1, 0));
+        return { ...slot, items: nextItems, currentIndex };
+      }),
+    );
+  }, [closetItems]);
   const [savedOutfit, setSavedOutfit] = useState(false);
   const [savedCategoryName, setSavedCategoryName] = useState("");
 

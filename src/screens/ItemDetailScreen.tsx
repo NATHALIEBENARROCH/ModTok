@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useCloset } from '../context/ClosetContext';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
+import KeyboardDoneBar, { KEYBOARD_DONE_ID } from '../components/KeyboardDoneBar';
 import { ClothingItem } from '../context/ClosetContext';
 import { supabase } from '../lib/supabase';
 import { Occasion, useOutfit } from '../context/OutfitContext';
@@ -399,6 +400,7 @@ export default function ItemDetailScreen() {
                 placeholder="0.00"
                 placeholderTextColor={Colors.mediumGray}
                 keyboardType="decimal-pad"
+                inputAccessoryViewID={KEYBOARD_DONE_ID}
               />
             </View>
           </View>
@@ -848,6 +850,7 @@ export default function ItemDetailScreen() {
           <Text style={styles.savedToastText}>Changes saved!</Text>
         </View>
       )}
+      <KeyboardDoneBar />
     </SafeAreaView>
   );
 }

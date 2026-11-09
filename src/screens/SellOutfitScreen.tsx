@@ -29,6 +29,7 @@ import {
   formatUsd,
 } from '../types/marketplace';
 import { BorderRadius, Colors, Spacing, Typography } from '../theme';
+import KeyboardDoneBar, { KEYBOARD_DONE_ID } from '../components/KeyboardDoneBar';
 
 function itemImage(item: ClothingItem) {
   return item.image_url ?? item.image;
@@ -259,7 +260,7 @@ export default function SellOutfitScreen() {
 
       {outfit && (
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" showsVerticalScrollIndicator={false}>
             <Text style={styles.fieldLabel}>TITLE</Text>
             <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Outfit name" placeholderTextColor={Colors.mediumGray} maxLength={120} />
 
@@ -289,6 +290,7 @@ export default function SellOutfitScreen() {
                         placeholder="0.00"
                         placeholderTextColor={Colors.mediumGray}
                         keyboardType="decimal-pad"
+                        inputAccessoryViewID={KEYBOARD_DONE_ID}
                       />
                     </View>
                   )}
@@ -311,7 +313,7 @@ export default function SellOutfitScreen() {
             <Text style={styles.fieldLabel}>OUTFIT PRICE (USD)</Text>
             <View style={styles.priceField}>
               <Text style={styles.priceSymbol}>$</Text>
-              <TextInput style={styles.priceInput} value={price} onChangeText={setPrice} placeholder="0.00" placeholderTextColor={Colors.mediumGray} keyboardType="decimal-pad" />
+              <TextInput style={styles.priceInput} value={price} onChangeText={setPrice} placeholder="0.00" placeholderTextColor={Colors.mediumGray} keyboardType="decimal-pad" inputAccessoryViewID={KEYBOARD_DONE_ID} />
             </View>
             {allowSeparate && separateTotalCents > 0 && (
               <Text style={styles.hint}>Pieces bought one by one add up to {formatUsd(separateTotalCents)}. A lower outfit price makes the whole look tempting.</Text>
@@ -358,6 +360,7 @@ export default function SellOutfitScreen() {
           </View>
         </KeyboardAvoidingView>
       )}
+      <KeyboardDoneBar />
     </SafeAreaView>
   );
 }

@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useMarketplace } from '../context/MarketplaceContext';
 import { BorderRadius, Colors, Spacing, Typography } from '../theme';
+import KeyboardDoneBar, { KEYBOARD_DONE_ID } from '../components/KeyboardDoneBar';
 
 const DISCOUNT_CHOICES = [0, 5, 10, 15, 20, 25, 30];
 
@@ -39,6 +40,7 @@ function Field({ label, value, onChangeText, placeholder, half = false, keyboard
         placeholder={placeholder}
         placeholderTextColor={Colors.mediumGray}
         keyboardType={keyboardType ?? 'default'}
+        inputAccessoryViewID={keyboardType && keyboardType !== 'default' ? KEYBOARD_DONE_ID : undefined}
         autoCapitalize={autoCapitalize}
       />
     </View>
@@ -156,7 +158,7 @@ export default function SellerShippingScreen() {
       </View>
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" showsVerticalScrollIndicator={false}>
           <View style={styles.infoCard}>
             <Ionicons name="print-outline" size={24} color={Colors.primary} />
             <View style={styles.infoCopy}>
@@ -203,6 +205,7 @@ export default function SellerShippingScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+      <KeyboardDoneBar />
     </SafeAreaView>
   );
 }

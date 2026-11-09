@@ -29,6 +29,7 @@ import {
   formatUsd,
 } from '../types/marketplace';
 import { BorderRadius, Colors, Spacing, Typography } from '../theme';
+import KeyboardDoneBar, { KEYBOARD_DONE_ID } from '../components/KeyboardDoneBar';
 
 function CheckoutField({ label, value, onChangeText, placeholder, half = false, keyboardType }: {
   label: string;
@@ -48,6 +49,7 @@ function CheckoutField({ label, value, onChangeText, placeholder, half = false, 
         placeholder={placeholder}
         placeholderTextColor={Colors.mediumGray}
         keyboardType={keyboardType ?? 'default'}
+        inputAccessoryViewID={keyboardType && keyboardType !== 'default' ? KEYBOARD_DONE_ID : undefined}
         autoCapitalize={label === 'Email' ? 'none' : 'words'}
         returnKeyType="next"
       />
@@ -222,7 +224,7 @@ export default function CheckoutScreen() {
       </View>
 
       <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" showsVerticalScrollIndicator={false}>
           <View style={styles.totalCard}>
             <Text style={styles.totalEyebrow}>PAYMENT TOTAL</Text>
             <Text style={styles.total}>{formatUsd(total)}</Text>
@@ -305,6 +307,7 @@ export default function CheckoutScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+      <KeyboardDoneBar />
     </SafeAreaView>
   );
 }
