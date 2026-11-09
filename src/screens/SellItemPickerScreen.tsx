@@ -16,6 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
+import KeyboardDoneBar, { KEYBOARD_DONE_ID } from '../components/KeyboardDoneBar';
 import { ClothingItem, useCloset } from '../context/ClosetContext';
 import { useMarketplace } from '../context/MarketplaceContext';
 import PackageSizePicker from '../components/PackageSizePicker';
@@ -203,7 +204,7 @@ export default function SellItemPickerScreen() {
 
       {step === 'details' && selectedItem && (
         <KeyboardAvoidingView style={styles.detailsKeyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={styles.detailsContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <ScrollView contentContainerStyle={styles.detailsContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" showsVerticalScrollIndicator={false}>
             <View style={styles.selectedItemCard}>
               <Image source={{ uri: itemImage(selectedItem) }} style={styles.selectedImage} resizeMode="contain" />
               <View style={styles.selectedItemCopy}><Text style={styles.selectedItemName}>{selectedItem.name}</Text><Text style={styles.selectedItemMeta}>{selectedItem.category}{selectedItem.color ? ` · ${selectedItem.color}` : ''}</Text></View>
@@ -222,7 +223,7 @@ export default function SellItemPickerScreen() {
             <TextInput style={[styles.input, styles.descriptionInput]} multiline value={description} onChangeText={setDescription} placeholder="Describe condition, fit, materials, or anything the buyer should know." placeholderTextColor={Colors.mediumGray} textAlignVertical="top" maxLength={2000} />
 
             <Text style={styles.fieldLabel}>SALE PRICE (USD)</Text>
-            <View style={styles.priceField}><Text style={styles.priceSymbol}>$</Text><TextInput style={styles.priceInput} placeholder="0.00" placeholderTextColor={Colors.mediumGray} keyboardType="decimal-pad" value={listingPrice} onChangeText={setListingPrice} returnKeyType="done" /></View>
+            <View style={styles.priceField}><Text style={styles.priceSymbol}>$</Text><TextInput style={styles.priceInput} placeholder="0.00" placeholderTextColor={Colors.mediumGray} keyboardType="decimal-pad" inputAccessoryViewID={KEYBOARD_DONE_ID} value={listingPrice} onChangeText={setListingPrice} returnKeyType="done" /></View>
 
             <Text style={styles.fieldLabel}>PACKAGE SIZE</Text>
             <PackageSizePicker value={packageSize} onChange={setPackageSize} />
@@ -244,6 +245,7 @@ export default function SellItemPickerScreen() {
           </View>
         </KeyboardAvoidingView>
       )}
+      <KeyboardDoneBar />
     </SafeAreaView>
   );
 }
