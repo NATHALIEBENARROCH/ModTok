@@ -29,6 +29,11 @@ yet. The app version in `app.json` is **1.1.0**.
   saved as `before-1.1`). Keep it until Apple approves 1.0. If Apple asks for a fix, the fix is made
   here, NOT on main (main would send the unfinished 1.1). Can be deleted after approval.
 
+## Written, after 1.1: following + Instagram-style feed (Nov 15, 2026)
+Branch `feature/follow-and-feed`. Follow people, a Feed tab with posts from people you follow,
+likes, profiles, Find people, and Edit Profile that really saves. Needs one SQL file
+(`supabase/v1_2_follow_and_feed.sql`). Details and test steps: `FOLLOW_AND_FEED.md`.
+
 ## Planned for 1.1: better color picking (Add Item → Pick a color)
 For fashionistas, keep the quick preset dots and add two ways to get the exact shade:
 - **Eyedropper on the item's photo**: tap the garment in the picture and ModTok picks up its
