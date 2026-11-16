@@ -26,6 +26,11 @@ import ProductDetailScreen from "../screens/ProductDetailScreen";
 import CheckoutScreen from "../screens/CheckoutScreen";
 import OrdersScreen from "../screens/OrdersScreen";
 import CreateAccountScreen from "../screens/CreateAccountScreen";
+import NewPostScreen from "../screens/NewPostScreen";
+import UserProfileScreen from "../screens/UserProfileScreen";
+import PostDetailScreen from "../screens/PostDetailScreen";
+import FindPeopleScreen from "../screens/FindPeopleScreen";
+import FollowListScreen from "../screens/FollowListScreen";
 import { withAccount } from "../components/AccountRequired";
 
 // Guests can use the whole wardrobe (add clothes, sort, style, save outfits) and browse the
@@ -35,11 +40,17 @@ const SellTab = withAccount(SellScreen, {
   title: "Sell from your closet",
   message: "Create a free account to list your clothes and get paid when they sell.",
 });
-const ShareTab = withAccount(ShareScreen, {
-  icon: "share-social-outline",
+const SOCIAL_GATE = {
+  icon: "people-outline",
   title: "Share your looks",
-  message: "Create a free account to post stories and see what the ModTok community is wearing.",
-});
+  message: "Create a free account to follow people, post your outfits and see what the ModTok community is wearing.",
+};
+const ShareTab = withAccount(ShareScreen, SOCIAL_GATE);
+const NewPostGated = withAccount(NewPostScreen, SOCIAL_GATE);
+const UserProfileGated = withAccount(UserProfileScreen, SOCIAL_GATE);
+const PostDetailGated = withAccount(PostDetailScreen, SOCIAL_GATE);
+const FindPeopleGated = withAccount(FindPeopleScreen, SOCIAL_GATE);
+const FollowListGated = withAccount(FollowListScreen, SOCIAL_GATE);
 const SellItemPickerGated = withAccount(SellItemPickerScreen, {
   icon: "pricetag-outline",
   title: "Sell from your closet",
@@ -116,6 +127,11 @@ export default function AppNavigator() {
         <Stack.Screen name="Checkout" component={CheckoutGated} />
         <Stack.Screen name="Orders" component={OrdersGated} />
         <Stack.Screen name="CreateAccount" component={CreateAccountScreen} />
+        <Stack.Screen name="NewPost" component={NewPostGated} options={{ presentation: "modal" }} />
+        <Stack.Screen name="UserProfile" component={UserProfileGated} />
+        <Stack.Screen name="PostDetail" component={PostDetailGated} />
+        <Stack.Screen name="FindPeople" component={FindPeopleGated} />
+        <Stack.Screen name="FollowList" component={FollowListGated} />
       </Stack.Navigator>
     </NavigationContainer>
   );

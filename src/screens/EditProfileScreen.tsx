@@ -8,31 +8,100 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
+  Alert,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { uploadImageToSupabase } from '../lib/uploadImage';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, Typography } from '../theme';
 import { supabase } from '../lib/supabase';
+import { avatarFor, useSocial } from '../context/SocialContext';
 
 type EditProfileScreenProps = {
   navigation: any;
 };
 
 export default function EditProfileScreen({ navigation }: EditProfileScreenProps) {
+  const { myProfile, updateMyProfile } = useSocial();
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
-  const [bio, setBio] = useState('My ModTok wardrobe');
+  const [bio, setBio] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    if (loaded) return;
+    if (myProfile) {
+      setName(myProfile.display_name ?? '');
+      setUsername((myProfile.username ?? '').replace(/^@/, ''));
+      setBio(myProfile.bio ?? '');
+      setWebsite(myProfile.website ?? '');
+      setLoaded(true);
+      return;
+    }
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
+      if (data.user && !loaded) {
         const emailName = (data.user.email ?? '').split('@')[0];
         setName(emailName);
         setUsername(emailName);
       }
     });
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myProfile]);
   const [website, setWebsite] = useState('');
   const [gender, setGender] = useState('');
+
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const changePhoto = async () => {
+    if (Platform.OS !== 'web') {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Photo library access is required to choose a profile photo.');
+        return;
+      }
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled || result.assets.length === 0) return;
+    setPhotoBusy(true);
+    try {
+      const url = await uploadImageToSupabase(result.assets[0].uri, 'avatar');
+      if (!url) throw new Error('The photo could not be uploaded.');
+      await updateMyProfile({ avatar_url: url });
+    } catch (error: any) {
+      Alert.alert('Could not change photo', error?.message ?? 'Please try again.');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
+  const save = async () => {
+    const cleanUsername = username.trim().replace(/^@/, '').toLowerCase();
+    if (!/^[a-z0-9._]{3,30}$/.test(cleanUsername)) {
+      Alert.alert('Check your username', 'Use 3 to 30 letters, numbers, dots or underscores, with no spaces.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateMyProfile({
+        display_name: name.trim() || cleanUsername,
+        username: `@${cleanUsername}`,
+        bio: bio.trim(),
+        website: website.trim() || null,
+      });
+      navigation.goBack();
+    } catch (error: any) {
+      Alert.alert('Could not save your profile', error?.message ?? 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const MAX_BIO = 150;
 
@@ -44,8 +113,8 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
           <Ionicons name="close" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Edit Profile</Text>
-        <TouchableOpacity style={styles.doneBtn} onPress={() => navigation.goBack()}>
-          <Text style={styles.doneBtnText}>Done</Text>
+        <TouchableOpacity style={styles.doneBtn} onPress={save} disabled={saving}>
+          {saving ? <ActivityIndicator size="small" color={Colors.white} /> : <Text style={styles.doneBtnText}>Done</Text>}
         </TouchableOpacity>
       </View>
 
@@ -53,10 +122,10 @@ export default function EditProfileScreen({ navigation }: EditProfileScreenProps
         {/* Avatar */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarWrapper}>
-            <Image source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${name || 'user'}` }} style={styles.avatar} />
+            <Image source={{ uri: avatarFor({ avatar_url: myProfile?.avatar_url, display_name: name || 'user' }) }} style={styles.avatar} />
           </View>
-          <TouchableOpacity activeOpacity={0.7}>
-            <Text style={styles.changePhotoText}>Change photo</Text>
+          <TouchableOpacity activeOpacity={0.7} onPress={changePhoto} disabled={photoBusy}>
+            <Text style={styles.changePhotoText}>{photoBusy ? 'Uploading…' : 'Change photo'}</Text>
           </TouchableOpacity>
         </View>
 

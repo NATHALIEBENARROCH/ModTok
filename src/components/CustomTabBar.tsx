@@ -22,7 +22,7 @@ const TAB_ICONS: Record<
 > = {
   Home: { icon: "home", lib: "Ionicons", label: "Sort" },
   Style: { icon: "color-wand", lib: "Ionicons", label: "Style" },
-  Share: { icon: "share-social", lib: "Ionicons", label: "Share" },
+  Share: { icon: "people", lib: "Ionicons", label: "Feed" },
   Add: { icon: "plus", lib: "Feather", label: "Add" },
   Save: { icon: "bookmark", lib: "Ionicons", label: "Saved" },
   Sell: { icon: "pricetag", lib: "Ionicons", label: "Sell" },

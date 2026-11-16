@@ -1,8 +1,10 @@
 import { SafeAreaView } from 'react-native-safe-area-context';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
+  RefreshControl,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -20,8 +22,11 @@ import { ShareStory, useOutfit } from '../context/OutfitContext';
 import { useCloset } from '../context/ClosetContext';
 import { useMarketplace } from '../context/MarketplaceContext';
 import { formatUsd } from '../types/marketplace';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import { PersonSummary, personName, useSocial } from '../context/SocialContext';
+import FeedPostCard from '../components/FeedPostCard';
+import PersonRow from '../components/PersonRow';
 
 function storyCover(story: ShareStory) {
   return story.image_urls?.[0] ?? '';
@@ -44,6 +49,26 @@ export default function ShareScreen({ route }: { route?: any }) {
   const [taggedItemId, setTaggedItemId] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
   const [sharing, setSharing] = useState(false);
+  const {
+    feed, feedLoading, feedRefreshing, followingIds, setupMissing,
+    refreshFeed, loadMoreFeed, searchPeople,
+  } = useSocial();
+  const [suggestions, setSuggestions] = useState<PersonSummary[]>([]);
+  const [storyPeople, setStoryPeople] = useState<Record<string, { display_name: string | null; username: string | null }>>({});
+
+  // Refresh the feed each time the tab opens.
+  useFocusEffect(useCallback(() => {
+    void refreshFeed();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []));
+
+  // Suggest people to follow when the feed is empty.
+  useEffect(() => {
+    if (feedLoading || feed.length > 0 || setupMissing) return;
+    let active = true;
+    searchPeople('').then((people) => { if (active) setSuggestions(people); }).catch(() => {});
+    return () => { active = false; };
+  }, [feed.length, feedLoading, followingIds, searchPeople, setupMissing]);
 
   useEffect(() => {
     let active = true;
@@ -64,6 +89,26 @@ export default function ShareScreen({ route }: { route?: any }) {
 
   const ownStory = latestStoriesByUser.find((story) => story.user_id === currentUserId) ?? null;
   const communityStories = latestStoriesByUser.filter((story) => story.user_id !== currentUserId);
+  // Stories from people you follow come first, like Instagram.
+  const orderedCommunityStories = useMemo(() => [
+    ...communityStories.filter((story) => followingIds.has(story.user_id)),
+    ...communityStories.filter((story) => !followingIds.has(story.user_id)),
+  ], [communityStories, followingIds]);
+
+  // Show people's names on their stories.
+  useEffect(() => {
+    const ids = Array.from(new Set(communityStories.map((story) => story.user_id))).filter((id) => !storyPeople[id]);
+    if (ids.length === 0) return;
+    supabase.from('profiles').select('id, display_name, username').in('id', ids).then(({ data }) => {
+      if (!data) return;
+      setStoryPeople((previous) => {
+        const next = { ...previous };
+        data.forEach((row: any) => { next[row.id] = { display_name: row.display_name, username: row.username }; });
+        return next;
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [communityStories]);
   const listedItems = myListings.filter((listing) => listing.status === 'active');
   const selectedOutfit = outfits.find((outfit) => outfit.id === selectedOutfitId) ?? null;
   const selectedOutfitItems = selectedOutfit
@@ -182,21 +227,22 @@ export default function ShareScreen({ route }: { route?: any }) {
     }
   };
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <View style={styles.headerSpacer} />
-        <Text style={styles.title}>Share</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerBtn} onPress={() => Alert.alert('Share', 'Stories disappear after 24 hours. Add a saved outfit to your story and optionally tag a listed item.') }>
-            <Ionicons name="information-circle-outline" size={22} color={Colors.black} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerBtn} onPress={openCreator}>
-            <Ionicons name="add-circle-outline" size={25} color={Colors.primary} />
-          </TouchableOpacity>
-        </View>
-      </View>
+  const openNewMenu = () => {
+    Alert.alert('Create', undefined, [
+      { text: 'New post', onPress: () => navigation.navigate('NewPost') },
+      { text: 'Add to your story (24 hours)', onPress: openCreator },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
 
+  const storyName = (story: ShareStory) => {
+    if (story.user_id === currentUserId) return 'Your Story';
+    const person = storyPeople[story.user_id];
+    return person ? personName(person) : displayName(story, false);
+  };
+
+  const storiesHeader = (
+    <View>
       <View style={styles.storySection}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.storyRow}>
           <View style={styles.ownStoryWrap}>
@@ -219,7 +265,7 @@ export default function ShareScreen({ route }: { route?: any }) {
             </TouchableOpacity>
           </View>
 
-          {communityStories.map((story) => (
+          {orderedCommunityStories.map((story) => (
             <TouchableOpacity key={story.id} style={styles.storyItem} onPress={() => setViewerStory(story)} activeOpacity={0.82}>
               <View style={styles.storyRing}>
                 {storyCover(story) ? (
@@ -228,46 +274,86 @@ export default function ShareScreen({ route }: { route?: any }) {
                   <Ionicons name="shirt-outline" size={25} color={Colors.primary} />
                 )}
               </View>
-              <Text style={styles.storyLabel} numberOfLines={1}>{displayName(story, false)}</Text>
+              <Text style={styles.storyLabel} numberOfLines={1}>{storyName(story)}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
       </View>
+      {setupMissing && (
+        <View style={styles.noticeCard}>
+          <Ionicons name="construct-outline" size={20} color={Colors.primary} />
+          <Text style={styles.noticeText}>The feed is almost ready. Run supabase/v1_2_follow_and_feed.sql in Supabase to turn on following and posts.</Text>
+        </View>
+      )}
+    </View>
+  );
 
-      {latestStoriesByUser.length === 0 ? (
-        <View style={styles.emptyState}>
-          <View style={styles.emptyIconCircle}>
-            <Ionicons name="sparkles-outline" size={38} color={Colors.primary} />
-          </View>
-          <Text style={styles.emptyTitle}>Share your first look</Text>
-          <Text style={styles.emptyText}>Create a 24-hour style story from one of your saved outfits. You can tag a listed piece if you want it to be shoppable.</Text>
-          <TouchableOpacity style={styles.createStoryButton} onPress={openCreator}>
-            <Ionicons name="add" size={19} color={Colors.white} />
-            <Text style={styles.createStoryText}>Add Story</Text>
+  const emptyFeed = feedLoading ? (
+    <View style={styles.feedLoading}><ActivityIndicator color={Colors.primary} /></View>
+  ) : (
+    <View style={styles.emptyFeed}>
+      <View style={styles.emptyIconCircle}>
+        <Ionicons name="people-outline" size={36} color={Colors.primary} />
+      </View>
+      <Text style={styles.emptyTitle}>{followingIds.size === 0 ? 'Follow people you love' : 'No posts yet'}</Text>
+      <Text style={styles.emptyText}>
+        {followingIds.size === 0
+          ? 'When you follow people, their outfits and closet finds show up here. You can also post your own looks.'
+          : 'The people you follow haven’t posted yet. Be the first: share an outfit or a closet find.'}
+      </Text>
+      <View style={styles.emptyButtons}>
+        <TouchableOpacity style={styles.createStoryButton} onPress={() => navigation.navigate('FindPeople')}>
+          <Ionicons name="person-add-outline" size={18} color={Colors.white} />
+          <Text style={styles.createStoryText}>Find people</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.outlineButton} onPress={() => navigation.navigate('NewPost')}>
+          <Ionicons name="add" size={19} color={Colors.textPrimary} />
+          <Text style={styles.outlineButtonText}>New post</Text>
+        </TouchableOpacity>
+      </View>
+      {suggestions.length > 0 && (
+        <View style={styles.suggestions}>
+          <Text style={styles.suggestionsTitle}>Suggested for you</Text>
+          {suggestions.slice(0, 5).map((person) => (
+            <PersonRow key={person.id} person={person} onPress={() => navigation.navigate('UserProfile', { userId: person.id })} />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.navigate('FindPeople')} accessibilityLabel="Find people">
+          <Ionicons name="person-add-outline" size={22} color={Colors.black} />
+        </TouchableOpacity>
+        <Text style={styles.title}>Feed</Text>
+        <View style={styles.headerRight}>
+          <TouchableOpacity style={styles.headerBtn} onPress={openNewMenu} accessibilityLabel="Create a post or story">
+            <Ionicons name="add-circle-outline" size={25} color={Colors.primary} />
           </TouchableOpacity>
         </View>
-      ) : (
-        <FlatList
-          data={latestStoriesByUser}
-          keyExtractor={(story) => story.id}
-          contentContainerStyle={styles.storyFeed}
-          ListHeaderComponent={<Text style={styles.feedTitle}>Today’s style stories</Text>}
-          renderItem={({ item: story }) => (
-            <TouchableOpacity style={styles.feedCard} onPress={() => setViewerStory(story)} activeOpacity={0.86}>
-              <View style={styles.feedImageRow}>
-                {story.image_urls.slice(0, 3).map((url, index) => <Image key={`${story.id}-${index}`} source={{ uri: url }} style={styles.feedImage} resizeMode="cover" />)}
-              </View>
-              <View style={styles.feedCardFooter}>
-                <Text style={styles.feedCardTitle}>{story.user_id === currentUserId ? 'Your Story' : 'Style story'}</Text>
-                <Text style={styles.feedCardSubtitle} numberOfLines={1}>{story.caption || 'Tap to watch this look'}</Text>
-              </View>
-            </TouchableOpacity>
-          )}
-          ItemSeparatorComponent={() => <View style={{ height: Spacing.md }} />}
-          ListFooterComponent={<View style={{ height: 114 }} />}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
+      </View>
+
+      <FlatList
+        data={feed}
+        keyExtractor={(post) => post.id}
+        ListHeaderComponent={storiesHeader}
+        renderItem={({ item }) => <FeedPostCard post={item} />}
+        ListEmptyComponent={emptyFeed}
+        onEndReached={() => { void loadMoreFeed(); }}
+        onEndReachedThreshold={0.6}
+        refreshControl={
+          <RefreshControl
+            refreshing={feedRefreshing && !feedLoading}
+            onRefresh={() => { void refreshFeed(); void loadShareStories(); }}
+            tintColor={Colors.primary}
+          />
+        }
+        ListFooterComponent={<View style={{ height: 114 }} />}
+        showsVerticalScrollIndicator={false}
+      />
 
       <Modal visible={creatorVisible} animationType="slide" onRequestClose={resetCreator}>
         <SafeAreaView style={styles.modalSafeArea}>
@@ -347,7 +433,17 @@ export default function ShareScreen({ route }: { route?: any }) {
                 <View style={styles.viewerMiniRing}>
                   {viewerStory && storyCover(viewerStory) ? <Image source={{ uri: storyCover(viewerStory) }} style={styles.viewerMiniAvatar} /> : <Ionicons name="shirt-outline" size={16} color={Colors.white} />}
                 </View>
-                <Text style={styles.viewerName}>{viewerStory?.user_id === currentUserId ? 'Your Story' : 'Style Story'}</Text>
+                <TouchableOpacity
+                  disabled={!viewerStory || viewerStory.user_id === currentUserId}
+                  onPress={() => {
+                    if (!viewerStory) return;
+                    const userId = viewerStory.user_id;
+                    setViewerStory(null);
+                    navigation.navigate('UserProfile', { userId });
+                  }}
+                >
+                  <Text style={styles.viewerName}>{viewerStory ? storyName(viewerStory) : ''}</Text>
+                </TouchableOpacity>
               </View>
               {viewerStory && viewerStory.user_id !== currentUserId ? (
                 <TouchableOpacity style={styles.viewerOptionsButton} onPress={() => showStoryOptions(viewerStory)}>
@@ -397,7 +493,7 @@ const styles = StyleSheet.create({
   title: { flex: 1, fontSize: Typography.fontSize.xl, fontWeight: '800', color: Colors.textPrimary, letterSpacing: -0.5, textAlign: 'center' },
   headerRight: { flexDirection: 'row', gap: Spacing.xs },
   headerBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  storySection: { borderBottomWidth: 1, borderBottomColor: Colors.cardBorder },
+  storySection: { borderBottomWidth: 1, borderBottomColor: Colors.cardBorder, backgroundColor: Colors.background },
   storyRow: { paddingHorizontal: Spacing.base, paddingBottom: Spacing.md, gap: Spacing.md },
   ownStoryWrap: { width: 66, alignItems: 'center' },
   storyItem: { alignItems: 'center', width: 66 },
@@ -413,6 +509,15 @@ const styles = StyleSheet.create({
   createStoryButton: { marginTop: Spacing.lg, flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, backgroundColor: Colors.primary, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderRadius: BorderRadius.pill },
   createStoryText: { color: Colors.white, fontSize: Typography.fontSize.sm, fontWeight: '800' },
   storyFeed: { padding: Spacing.base },
+  feedLoading: { padding: Spacing.xxl, alignItems: 'center' },
+  emptyFeed: { alignItems: 'center', paddingHorizontal: Spacing.xl, paddingTop: Spacing.xxl },
+  emptyButtons: { flexDirection: 'row', gap: Spacing.sm },
+  outlineButton: { marginTop: Spacing.lg, flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, borderWidth: 1.5, borderColor: Colors.cardBorder, backgroundColor: Colors.white, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderRadius: BorderRadius.pill },
+  outlineButtonText: { color: Colors.textPrimary, fontSize: Typography.fontSize.sm, fontWeight: '800' },
+  suggestions: { alignSelf: 'stretch', marginTop: Spacing.xl, marginHorizontal: -Spacing.xl, backgroundColor: Colors.white, borderTopWidth: 1, borderBottomWidth: 1, borderColor: Colors.cardBorder, paddingVertical: Spacing.sm },
+  suggestionsTitle: { paddingHorizontal: Spacing.base, paddingVertical: Spacing.xs, color: Colors.textSecondary, fontSize: Typography.fontSize.xs, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' },
+  noticeCard: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center', margin: Spacing.base, padding: Spacing.md, borderRadius: BorderRadius.md, backgroundColor: '#FFF6F4', borderWidth: 1, borderColor: Colors.primaryLight },
+  noticeText: { flex: 1, color: Colors.textPrimary, fontSize: Typography.fontSize.xs, lineHeight: 18 },
   feedTitle: { marginBottom: Spacing.sm, color: Colors.textPrimary, fontSize: Typography.fontSize.md, fontWeight: '800' },
   feedCard: { overflow: 'hidden', backgroundColor: Colors.white, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.cardBorder },
   feedImageRow: { height: 172, flexDirection: 'row', backgroundColor: '#FFFDF9' },

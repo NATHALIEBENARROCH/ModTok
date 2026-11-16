@@ -12,6 +12,7 @@ import { ClosetProvider } from "./src/context/ClosetContext";
 import { OutfitProvider } from "./src/context/OutfitContext";
 import { MarketplaceProvider } from "./src/context/MarketplaceContext";
 import { AccountProvider } from "./src/context/AccountContext";
+import { SocialProvider } from "./src/context/SocialContext";
 import { Colors } from "./src/theme";
 import ModTokLogo from "./src/components/ModTokLogo";
 import { supabase } from "./src/lib/supabase";
@@ -115,8 +116,10 @@ export default function App() {
         <ClosetProvider>
           <OutfitProvider>
             <MarketplaceProvider>
-              <StatusBar style="dark" backgroundColor={Colors.background} />
-              <AppContent />
+              <SocialProvider>
+                <StatusBar style="dark" backgroundColor={Colors.background} />
+                <AppContent />
+              </SocialProvider>
             </MarketplaceProvider>
           </OutfitProvider>
         </ClosetProvider>

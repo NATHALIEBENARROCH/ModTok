@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,14 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
-import { Colors, Spacing, BorderRadius, Typography } from '../theme';
+import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../theme';
 import { supabase } from '../lib/supabase';
 import { useCloset } from '../context/ClosetContext';
 import { ShareStory, useOutfit } from '../context/OutfitContext';
 import { useMarketplace } from '../context/MarketplaceContext';
 import { useAccount } from '../context/AccountContext';
+import { FeedPost, avatarFor, personHandle, useSocial } from '../context/SocialContext';
+import { useFocusEffect } from '@react-navigation/native';
 
 // Turn on only once Premium is sold through Apple In-App Purchase.
 const SHOW_PREMIUM_BANNER = false;
@@ -28,6 +30,19 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
   const [userEmail, setUserEmail] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
   const [viewerStory, setViewerStory] = useState<ShareStory | null>(null);
+  const { myProfile, reloadMyProfile, getUserPosts, myUserId } = useSocial();
+  const [profileTab, setProfileTab] = useState<'posts' | 'looks'>('posts');
+  const [myPosts, setMyPosts] = useState<FeedPost[]>([]);
+
+  // Follower counts and posts change while you use the app; refresh when Profile opens.
+  useFocusEffect(useCallback(() => {
+    void reloadMyProfile();
+    if (!myUserId || isGuest) {
+      setMyPosts([]);
+      return;
+    }
+    getUserPosts(myUserId).then(setMyPosts).catch(() => setMyPosts([]));
+  }, [getUserPosts, isGuest, myUserId, reloadMyProfile]));
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -38,8 +53,16 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
     });
   }, [isGuest]);
 
-  const username = userEmail ? '@' + userEmail.split('@')[0] : isGuest ? 'Guest' : '@user';
-  const displayName = userEmail ? userEmail.split('@')[0] : isGuest ? 'Guest' : 'ModTok User';
+  const username = personHandle(myProfile) || (userEmail ? '@' + userEmail.split('@')[0] : isGuest ? 'Guest' : '@user');
+  const displayName = myProfile?.display_name?.trim() || (userEmail ? userEmail.split('@')[0] : isGuest ? 'Guest' : 'ModTok User');
+  const avatarUri = myProfile ? avatarFor(myProfile) : `https://api.dicebear.com/7.x/initials/png?seed=${displayName}`;
+  const openFollowList = (type: 'followers' | 'following') => {
+    if (isGuest || !userId) {
+      navigation.navigate('CreateAccount');
+      return;
+    }
+    navigation.navigate('FollowList', { userId, type, name: displayName });
+  };
   const ownStory = useMemo(
     () => shareStories.find((story) => story.user_id === userId) ?? null,
     [shareStories, userId],
@@ -87,7 +110,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
               activeOpacity={0.84}
             >
               <Image
-                source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${displayName}` }}
+                source={{ uri: avatarUri }}
                 style={styles.avatar}
               />
             </TouchableOpacity>
@@ -97,7 +120,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
           </View>
           <View style={styles.profileInfo}>
             <Text style={styles.displayName}>{displayName}</Text>
-            <Text style={styles.bio}>My ModTok wardrobe</Text>
+            <Text style={styles.bio}>{myProfile?.bio?.trim() || 'My ModTok wardrobe'}</Text>
             <View style={styles.statsRow}>
               <View style={styles.stat}>
                 <Text style={styles.statNumber}>{totalItems}</Text>
@@ -109,22 +132,22 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
                 <Text style={styles.statLabel}>Outfits</Text>
               </View>
               <View style={styles.statDivider} />
-              <View style={styles.stat}>
-                <Text style={styles.statNumber}>0</Text>
+              <TouchableOpacity style={styles.stat} onPress={() => openFollowList('followers')}>
+                <Text style={styles.statNumber}>{myProfile?.followers ?? 0}</Text>
                 <Text style={styles.statLabel}>Followers</Text>
-              </View>
+              </TouchableOpacity>
               <View style={styles.statDivider} />
-              <View style={styles.stat}>
-                <Text style={styles.statNumber}>0</Text>
+              <TouchableOpacity style={styles.stat} onPress={() => openFollowList('following')}>
+                <Text style={styles.statNumber}>{myProfile?.following ?? 0}</Text>
                 <Text style={styles.statLabel}>Following</Text>
-              </View>
+              </TouchableOpacity>
             </View>
             <View style={styles.actionRow}>
               <TouchableOpacity style={styles.editProfileBtn} onPress={() => navigation.navigate('EditProfile')}>
                 <Text style={styles.editProfileText}>Edit Profile</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.shareProfileBtn} onPress={() => navigation.navigate('Share')}>
-                <Feather name="share" size={16} color={Colors.textPrimary} />
+              <TouchableOpacity style={styles.shareProfileBtn} onPress={() => navigation.navigate('FindPeople')} accessibilityLabel="Find people">
+                <Feather name="user-plus" size={16} color={Colors.textPrimary} />
               </TouchableOpacity>
             </View>
           </View>
@@ -163,12 +186,55 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
           </View>
         )}
 
-        <View style={styles.looksHeader}>
-          <Ionicons name="grid-outline" size={18} color={Colors.textPrimary} />
-          <Text style={styles.looksTitle}>My Saved Looks</Text>
+        <View style={styles.tabSwitch}>
+          {([
+            { key: 'posts', label: 'Posts', icon: 'grid-outline' },
+            { key: 'looks', label: 'Saved Looks', icon: 'bookmark-outline' },
+          ] as const).map((tab) => {
+            const active = profileTab === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[styles.tabSwitchItem, active && styles.tabSwitchItemActive]}
+                onPress={() => setProfileTab(tab.key)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: active }}
+              >
+                <Ionicons name={tab.icon} size={17} color={active ? Colors.textPrimary : Colors.mediumGray} />
+                <Text style={[styles.tabSwitchText, active && styles.tabSwitchTextActive]}>{tab.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        {outfitCards.length === 0 ? (
+        {profileTab === 'posts' ? (
+          myPosts.length === 0 ? (
+            <View style={styles.emptyLooks}>
+              <Ionicons name="camera-outline" size={32} color={Colors.primary} />
+              <Text style={styles.emptyLooksTitle}>Share your first post</Text>
+              <Text style={styles.emptyLooksText}>Post an outfit, a closet piece or a photo. Your followers will see it in their Feed.</Text>
+              <TouchableOpacity style={styles.createLookBtn} onPress={() => navigation.navigate(isGuest ? 'CreateAccount' : 'NewPost')}>
+                <Text style={styles.createLookBtnText}>New Post</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.postGrid}>
+              {myPosts.map((post) => (
+                <TouchableOpacity
+                  key={post.id}
+                  style={styles.postCell}
+                  onPress={() => navigation.navigate('PostDetail', { post })}
+                  activeOpacity={0.85}
+                >
+                  <Image source={{ uri: post.image_urls[0] }} style={styles.postImage} resizeMode="cover" />
+                  {post.image_urls.length > 1 && (
+                    <Ionicons name="copy" size={15} color={Colors.white} style={styles.postMultiIcon} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )
+        ) : outfitCards.length === 0 ? (
           <View style={styles.emptyLooks}>
             <Ionicons name="color-wand-outline" size={32} color={Colors.primary} />
             <Text style={styles.emptyLooksTitle}>Your looks will live here</Text>
@@ -213,7 +279,7 @@ export default function ProfileScreen({ navigation }: { navigation: any }) {
           <SafeAreaView style={styles.storyViewerSafeArea}>
             <View style={styles.storyViewerIdentity}>
               <View style={styles.storyMiniRing}>
-                <Image source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${displayName}` }} style={styles.storyMiniAvatar} />
+                <Image source={{ uri: avatarUri }} style={styles.storyMiniAvatar} />
               </View>
               <Text style={styles.storyViewerName}>Your Story</Text>
             </View>
@@ -301,6 +367,15 @@ const styles = StyleSheet.create({
   premiumSubtitle: { fontSize: Typography.fontSize.xs, color: Colors.textSecondary },
   premiumBtn: { backgroundColor: Colors.primary, borderRadius: BorderRadius.pill, paddingHorizontal: Spacing.md, paddingVertical: 6 },
   premiumBtnText: { color: Colors.white, fontWeight: '700', fontSize: Typography.fontSize.xs },
+  tabSwitch: { flexDirection: 'row', marginHorizontal: Spacing.base, marginBottom: Spacing.md, padding: 3, borderRadius: BorderRadius.pill, backgroundColor: Colors.lightGray },
+  tabSwitchItem: { flex: 1, minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: BorderRadius.pill },
+  tabSwitchItemActive: { backgroundColor: Colors.white, ...Shadows.card },
+  tabSwitchText: { color: Colors.mediumGray, fontSize: Typography.fontSize.sm, fontWeight: '700' },
+  tabSwitchTextActive: { color: Colors.textPrimary, fontWeight: '800' },
+  postGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 2, paddingHorizontal: Spacing.base },
+  postCell: { width: '32.9%' as any, aspectRatio: 0.8, overflow: 'hidden', borderRadius: 4, backgroundColor: '#FFFDF9' },
+  postImage: { width: '100%', height: '100%' },
+  postMultiIcon: { position: 'absolute', top: 6, right: 6 },
   looksHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: Spacing.base, marginBottom: Spacing.sm },
   looksTitle: { fontSize: Typography.fontSize.base, fontWeight: '800', color: Colors.textPrimary },
   outfitGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, paddingHorizontal: Spacing.base },
