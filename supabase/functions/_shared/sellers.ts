@@ -46,8 +46,11 @@ export interface SellerState {
 }
 
 function finish(state: Omit<SellerState, 'onboarding_completed_at'>): SellerState {
-  const ready = state.details_submitted && state.charges_enabled && state.payouts_enabled;
-  return { ...state, onboarding_completed_at: ready ? new Date().toISOString() : null };
+  // Accounts created with Accounts v2 can report details_submitted=false through the v1 API
+  // even when Stripe has enabled charges and payouts, so enabled capabilities count as submitted.
+  const details_submitted = state.details_submitted || (state.charges_enabled && state.payouts_enabled);
+  const ready = details_submitted && state.charges_enabled && state.payouts_enabled;
+  return { ...state, details_submitted, onboarding_completed_at: ready ? new Date().toISOString() : null };
 }
 
 function stateFromV2(account: any): SellerState {
