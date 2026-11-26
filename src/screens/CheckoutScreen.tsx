@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,7 +14,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { initPaymentSheet, initStripe, presentPaymentSheet } from '../lib/stripeNative';
+import {
+  confirmPlatformPayPayment,
+  initPaymentSheet,
+  initStripe,
+  isPlatformPaySupported,
+  openPlatformPaySetup,
+  PlatformPay,
+  PlatformPayButton,
+  presentPaymentSheet,
+} from '../lib/stripeNative';
 import { functionError, useMarketplace } from '../context/MarketplaceContext';
 import { supabase } from '../lib/supabase';
 import { formatUsd, ShippingAddress } from '../types/marketplace';
@@ -61,6 +70,13 @@ export default function CheckoutScreen() {
   const [phone, setPhone] = useState('');
 
   const total = useMemo(() => listing ? listing.price_cents + listing.shipping_price_cents : 0, [listing]);
+  // Apple Pay gets its own button on iOS. Without a card in Wallet it becomes "Set up Apple Pay".
+  const [applePayReady, setApplePayReady] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    isPlatformPaySupported().then(setApplePayReady).catch(() => setApplePayReady(false));
+  }, []);
 
   const validate = (): ShippingAddress | null => {
     if (![name, line1, city, state, postalCode].every((value) => value.trim())) {
@@ -79,6 +95,42 @@ export default function CheckoutScreen() {
     };
   };
 
+  // Creates the order on the server and returns what Stripe needs to take the payment.
+  const startCheckout = async (shippingAddress: ShippingAddress) => {
+    const { data, error } = await supabase.functions.invoke('marketplace-checkout', {
+      body: { listing_id: listing!.id, shipping_address: shippingAddress },
+    });
+    if (error) throw await functionError(error, 'Could not start checkout.');
+    if (!data?.payment_intent_client_secret || !data?.publishable_key || !data?.order_id) {
+      throw new Error('Checkout is not fully configured yet.');
+    }
+    await initStripe({
+      publishableKey: data.publishable_key,
+      merchantIdentifier: 'merchant.com.modtok.app', // Apple Pay
+      urlScheme: 'modtok',
+    });
+    return { orderId: data.order_id as string, clientSecret: data.payment_intent_client_secret as string };
+  };
+
+  const paymentDone = async () => {
+    // Refresh listings too, so the item no longer shows as for sale when going back.
+    await Promise.all([refreshOrders(), refreshListings()]);
+    Alert.alert('Payment received', 'Your purchase is confirmed. You can follow shipping in My Purchases.', [
+      { text: 'View purchases', onPress: () => navigation.replace('Orders', { initialTab: 'Purchases' }) },
+    ]);
+  };
+
+  const paymentFailed = async (orderId: string | null, error: any) => {
+    if (orderId) {
+      try {
+        await runOrderAction({ action: 'cancel_checkout', order_id: orderId });
+      } catch {
+        // A successful payment cannot be canceled here; the webhook will confirm it.
+      }
+    }
+    Alert.alert('Checkout could not continue', error?.message ?? 'Please try again.');
+  };
+
   const pay = async () => {
     if (!listing) return;
     if (Platform.OS === 'web') {
@@ -91,27 +143,15 @@ export default function CheckoutScreen() {
     setProcessing(true);
     let orderId: string | null = null;
     try {
-      const { data, error } = await supabase.functions.invoke('marketplace-checkout', {
-        body: { listing_id: listing.id, shipping_address: shippingAddress },
-      });
-      if (error) throw await functionError(error, 'Could not start checkout.');
-      if (!data?.payment_intent_client_secret || !data?.publishable_key || !data?.order_id) {
-        throw new Error('Checkout is not fully configured yet.');
-      }
-      orderId = data.order_id;
-
-      await initStripe({
-        publishableKey: data.publishable_key,
-        merchantIdentifier: 'merchant.com.modtok.app', // Apple Pay
-        urlScheme: 'modtok',
-      });
+      const checkout = await startCheckout(shippingAddress);
+      orderId = checkout.orderId;
 
       const { error: initError } = await initPaymentSheet({
         merchantDisplayName: 'ModTok',
-        paymentIntentClientSecret: data.payment_intent_client_secret,
+        paymentIntentClientSecret: checkout.clientSecret,
         returnURL: 'modtok://stripe-redirect',
         allowsDelayedPaymentMethods: false,
-        // Apple Pay shows at the top of the payment sheet on iPhones that have it set up.
+        // Apple Pay also shows at the top of the payment sheet on devices that have it set up.
         applePay: { merchantCountryCode: 'US' },
         defaultBillingDetails: { name: shippingAddress.name, phone: shippingAddress.phone },
         style: 'automatic',
@@ -126,21 +166,49 @@ export default function CheckoutScreen() {
         }
         throw new Error(paymentError.message);
       }
-
-      // Refresh listings too, so the item no longer shows as for sale when going back.
-      await Promise.all([refreshOrders(), refreshListings()]);
-      Alert.alert('Payment received', 'Your purchase is confirmed. You can follow shipping in My Purchases.', [
-        { text: 'View purchases', onPress: () => navigation.replace('Orders', { initialTab: 'Purchases' }) },
-      ]);
+      await paymentDone();
     } catch (error: any) {
-      if (orderId) {
-        try {
-          await runOrderAction({ action: 'cancel_checkout', order_id: orderId });
-        } catch {
-          // A successful payment cannot be canceled here; the webhook will confirm it.
+      await paymentFailed(orderId, error);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const payWithApplePay = async () => {
+    if (!listing) return;
+    if (!applePayReady) {
+      // No card in Wallet yet: Apple's "Set up Apple Pay" flow.
+      await openPlatformPaySetup();
+      return;
+    }
+    const shippingAddress = validate();
+    if (!shippingAddress) return;
+
+    setProcessing(true);
+    let orderId: string | null = null;
+    try {
+      const checkout = await startCheckout(shippingAddress);
+      orderId = checkout.orderId;
+
+      const { error: paymentError } = await confirmPlatformPayPayment(checkout.clientSecret, {
+        applePay: {
+          merchantCountryCode: 'US',
+          currencyCode: 'USD',
+          cartItems: [
+            { label: 'ModTok', amount: (total / 100).toFixed(2), paymentType: PlatformPay.PaymentType.Immediate },
+          ],
+        },
+      });
+      if (paymentError) {
+        if (paymentError.code === 'Canceled') {
+          if (orderId) await runOrderAction({ action: 'cancel_checkout', order_id: orderId });
+          return;
         }
+        throw new Error(paymentError.message);
       }
-      Alert.alert('Checkout could not continue', error?.message ?? 'Please try again.');
+      await paymentDone();
+    } catch (error: any) {
+      await paymentFailed(orderId, error);
     } finally {
       setProcessing(false);
     }
@@ -186,11 +254,27 @@ export default function CheckoutScreen() {
           </View>
           <CheckoutField label="Phone (optional)" value={phone} onChangeText={setPhone} placeholder="For delivery updates" keyboardType="phone-pad" />
 
+          {Platform.OS === 'ios' && (
+            <View style={styles.applePayWrap}>
+              <PlatformPayButton
+                type={applePayReady ? PlatformPay.ButtonType.Buy : PlatformPay.ButtonType.SetUp}
+                appearance={PlatformPay.ButtonStyle.Black}
+                borderRadius={BorderRadius.pill}
+                onPress={payWithApplePay}
+                disabled={processing}
+                style={styles.applePayButton}
+              />
+              <Text style={styles.applePayNote}>
+                {applePayReady ? 'Pay instantly with Apple Pay.' : 'Add a card to Wallet to pay with Apple Pay.'}
+              </Text>
+            </View>
+          )}
+
           <View style={styles.paymentCard}>
             <Ionicons name="card-outline" size={24} color={Colors.primary} />
             <View style={styles.paymentCopy}>
-              <Text style={styles.paymentTitle}>Apple Pay or card comes next</Text>
-              <Text style={styles.paymentText}>Pay with Apple Pay or a card on Stripe’s secure payment sheet. ModTok never stores your card number.</Text>
+              <Text style={styles.paymentTitle}>Or pay by card</Text>
+              <Text style={styles.paymentText}>Tap Pay below to use a card on Stripe’s secure payment sheet. ModTok never stores your card number.</Text>
             </View>
           </View>
           <View style={{ height: 118 }} />
@@ -229,6 +313,9 @@ const styles = StyleSheet.create({
   fieldRow: { flexDirection: 'row', gap: Spacing.sm },
   fieldLabel: { marginBottom: 6, color: Colors.textSecondary, fontSize: Typography.fontSize.xs, fontWeight: '800', letterSpacing: 0.4 },
   input: { minHeight: 50, paddingHorizontal: Spacing.md, color: Colors.textPrimary, fontSize: Typography.fontSize.base, backgroundColor: Colors.white, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.cardBorder },
+  applePayWrap: { marginTop: Spacing.sm, marginBottom: Spacing.md },
+  applePayButton: { width: '100%', height: 54 },
+  applePayNote: { marginTop: 6, color: Colors.textSecondary, fontSize: Typography.fontSize.xs, textAlign: 'center' },
   paymentCard: { marginTop: Spacing.sm, flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md, padding: Spacing.base, backgroundColor: '#F9E5E1', borderRadius: BorderRadius.lg },
   paymentCopy: { flex: 1 },
   paymentTitle: { color: Colors.textPrimary, fontSize: Typography.fontSize.sm, fontWeight: '800' },
