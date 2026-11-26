@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { CommonActions, useNavigation, useRoute } from '@react-navigation/native';
 import {
   confirmPlatformPayPayment,
   initPaymentSheet,
@@ -112,11 +112,21 @@ export default function CheckoutScreen() {
     return { orderId: data.order_id as string, clientSecret: data.payment_intent_client_secret as string };
   };
 
+  // After buying, open My Purchases with the bought item's page and checkout removed from the
+  // history, so Back returns to the marketplace instead of an item that is already sold.
+  const showPurchases = () => {
+    navigation.dispatch((state: any) => {
+      const routes = state.routes.filter((route: any) => !['ProductDetail', 'Checkout'].includes(route.name));
+      routes.push({ key: `Orders-${Date.now()}`, name: 'Orders', params: { initialTab: 'Purchases' } });
+      return CommonActions.reset({ ...state, routes, index: routes.length - 1 });
+    });
+  };
+
   const paymentDone = async () => {
     // Refresh listings too, so the item no longer shows as for sale when going back.
     await Promise.all([refreshOrders(), refreshListings()]);
     Alert.alert('Payment received', 'Your purchase is confirmed. You can follow shipping in My Purchases.', [
-      { text: 'View purchases', onPress: () => navigation.replace('Orders', { initialTab: 'Purchases' }) },
+      { text: 'View purchases', onPress: showPurchases },
     ]);
   };
 
