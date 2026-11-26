@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useMarketplace } from '../context/MarketplaceContext';
 import { supabase } from '../lib/supabase';
 import { CONDITION_LABELS, MarketplaceListing, formatUsd } from '../types/marketplace';
@@ -47,6 +47,19 @@ export default function ProductDetailScreen() {
         setLoading(false);
       });
   }, [listing, listingId]);
+
+  // Reload when coming back to this screen (for example after buying it), so a sold item
+  // never still shows "Buy".
+  useFocusEffect(useCallback(() => {
+    supabase
+      .from('marketplace_listings')
+      .select(DETAIL_SELECT)
+      .eq('id', listingId)
+      .single()
+      .then(({ data }) => {
+        if (data) setListing(data as unknown as MarketplaceListing);
+      });
+  }, [listingId]));
 
   const total = useMemo(
     () => listing ? listing.price_cents + listing.shipping_price_cents : 0,
